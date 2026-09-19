@@ -21,6 +21,7 @@ export default defineConfig(({ mode }) => {
       setupFiles: './src/test/setup.ts',
     },
     build: {
+      outDir: 'build',
       rollupOptions: {
         output: {
           manualChunks: {
