@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: {
         '/api': {
-          target: env.VITE_API_PROXY_TARGET ?? 'https://localhost:7027',
+          target: env.VITE_API_PROXY_TARGET ?? 'https://restaurant-back-eke0cgd9e9efa9ba.westus3-01.azurewebsites.net',
           changeOrigin: true,
           secure: false,
         },
