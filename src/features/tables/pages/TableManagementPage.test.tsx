@@ -20,7 +20,7 @@ beforeEach(() => {
 afterEach(cleanup);
 it('renders details and filters by area', async () => {
  const user = userEvent.setup(); render(<TableManagementPage />);
- const list = await screen.findByRole('table'); expect(within(list).getByText('Hall')).toBeInTheDocument(); expect(within(list).getByText('Booth')).toBeInTheDocument();
+ const list = await screen.findByRole('table'); expect(within(list).getByText('Hall')).toBeInTheDocument(); expect(within(list).getByText('Booth')).toBeInTheDocument(); expect(within(list).getByText('4')).toBeInTheDocument();
  await user.click(screen.getByRole('combobox', { name: 'Area' })); await user.click(screen.getByRole('option', { name: 'Hall' }));
  await waitFor(() => expect(tableApi.getTables).toHaveBeenLastCalledWith('all', 'a1', expect.any(AbortSignal)));
 });
@@ -35,6 +35,19 @@ it('validates and creates a table', async () => {
  await user.clear(dialog.getByRole('spinbutton', { name: /Capacity/ })); await user.type(dialog.getByRole('spinbutton', { name: /Capacity/ }), '6');
  await user.click(dialog.getByRole('button', { name: 'Create table' }));
  await waitFor(() => expect(tableApi.createTable).toHaveBeenCalledWith({ areaId: 'a1', tableNumber: 'T2', name: '', capacity: 6, tableType: 0, displayOrder: 0, isActive: true }));
+});
+it('shows an invalid table type and prevents saving until corrected', async () => {
+ vi.mocked(tableApi.getTables).mockResolvedValue([{ ...table, tableType: 99 }]);
+ const user = userEvent.setup(); render(<TableManagementPage />);
+ await user.click(await screen.findByRole('button', { name: 'Edit T1' }));
+ const dialog = within(screen.getByRole('dialog'));
+ await user.click(dialog.getByRole('button', { name: 'Save changes' }));
+ expect(dialog.getByText('Select a valid table type.')).toBeInTheDocument();
+ expect(tableApi.updateTable).not.toHaveBeenCalled();
+ await user.click(dialog.getByRole('combobox', { name: /Type/ }));
+ await user.click(screen.getByRole('option', { name: 'Private room' }));
+ await user.click(dialog.getByRole('button', { name: 'Save changes' }));
+ await waitFor(() => expect(tableApi.updateTable).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ tableType: 3 })));
 });
 it('edits and confirms deactivation', async () => {
  const user = userEvent.setup(); render(<TableManagementPage />);
