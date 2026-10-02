@@ -6,10 +6,10 @@ import { tableApi } from '../api/tableApi';
 import { areaApi } from '../../areas/api/areaApi';
 import { useAuth } from '../../authentication/useAuth';
 import type { RestaurantTable } from '../types/tableTypes';
-vi.mock('../api/tableApi', () => ({ tableApi: { getTables: vi.fn(), createTable: vi.fn(), updateTable: vi.fn(), setTableStatus: vi.fn() } }));
+vi.mock('../api/tableApi', () => ({ tableApi: { getTables: vi.fn(), createTable: vi.fn(), updateTable: vi.fn(), setTableCondition: vi.fn(), setTableStatus: vi.fn() } }));
 vi.mock('../../areas/api/areaApi', () => ({ areaApi: { getAreas: vi.fn() } }));
 vi.mock('../../authentication/useAuth', () => ({ useAuth: vi.fn() }));
-const table: RestaurantTable = { id: 't1', restaurantId: 'r1', areaId: 'a1', tableNumber: 'T1', name: null, capacity: 4, tableType: 1, displayOrder: 0, isActive: true, createdAtUtc: '', updatedAtUtc: null, rowVersion: 'v1' };
+const table: RestaurantTable = { id: 't1', restaurantId: 'r1', areaId: 'a1', tableNumber: 'T1', name: null, capacity: 4, tableType: 1, displayOrder: 0, isActive: true, createdAtUtc: '', updatedAtUtc: null, rowVersion: 'v1', currentStatus: 0 };
 beforeEach(() => {
  vi.resetAllMocks();
  vi.mocked(useAuth).mockReturnValue({ user: { role: 'Manager' } } as ReturnType<typeof useAuth>);
@@ -89,4 +89,23 @@ it('keeps the table and shows the error when deactivation is blocked', async () 
  expect(await screen.findByText('A table with an active dining session cannot be deactivated.')).toBeInTheDocument();
  expect(screen.getByRole('dialog')).toBeInTheDocument();
  expect(within(screen.getByRole('table', { hidden: true })).getByText('Active')).toBeInTheDocument();
+});
+
+it('displays operational status separately and changes cleaning condition', async () => {
+ vi.mocked(tableApi.setTableCondition).mockResolvedValue({ ...table, currentStatus: 4 });
+ const user = userEvent.setup(); render(<TableManagementPage />);
+ const list = await screen.findByRole('table');
+ expect(within(list).getByText('Available')).toBeInTheDocument();
+ expect(within(list).getByText('Active')).toBeInTheDocument();
+ await user.click(screen.getByRole('combobox', { name: 'Condition' }));
+ await user.click(screen.getByRole('option', { name: 'Cleaning' }));
+ await waitFor(() => expect(tableApi.setTableCondition).toHaveBeenCalledWith(table, 1));
+});
+it.each([1, 2, 3, 4, 5])('renders status %i for waiters without condition controls', async status => {
+ vi.mocked(useAuth).mockReturnValue({ user: { role: 'Waiter' } } as ReturnType<typeof useAuth>);
+ vi.mocked(tableApi.getTables).mockResolvedValue([{ ...table, currentStatus: status }]);
+ render(<TableManagementPage />);
+ const list = await screen.findByRole('table');
+ expect(within(list).getByText(['Available', 'Occupied', 'Reserved', 'Payment Pending', 'Cleaning', 'Out Of Service'][status])).toBeInTheDocument();
+ expect(screen.queryByRole('combobox', { name: 'Condition' })).not.toBeInTheDocument();
 });

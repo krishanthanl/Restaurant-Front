@@ -22,6 +22,10 @@ export const tableApi = {
     });
     return data;
   },
+  async setTableCondition(table: RestaurantTable, condition: number) {
+    const { data } = await apiClient.put<RestaurantTable>(`/tables/${table.id}/condition`, { condition, rowVersion: table.rowVersion });
+    return data;
+  },
   async setTableStatus(table: RestaurantTable, isActive: boolean) {
     const { data } = await apiClient.put<RestaurantTable>(`/tables/${table.id}/${isActive ? 'activate' : 'deactivate'}`, { rowVersion: table.rowVersion });
     return data;

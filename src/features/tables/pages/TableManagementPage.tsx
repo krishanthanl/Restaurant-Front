@@ -10,7 +10,7 @@ import { FeedbackSnackbar, type Feedback } from '../../../components/FeedbackSna
 import { getApiErrorMessage } from '../../../services/apiClient';
 import { tableApi } from '../api/tableApi';
 import { TableFormDialog } from '../components/TableFormDialog';
-import { tableTypes, type RestaurantTable, type TableFilter, type TableInput } from '../types/tableTypes';
+import { tableStatuses, tableTypes, type RestaurantTable, type TableFilter, type TableInput } from '../types/tableTypes';
 
 import { areaApi } from '../../areas/api/areaApi';
 import type { Area } from '../../areas/types/areaTypes';
@@ -68,6 +68,18 @@ export function TableManagementPage() {
     finally { setSaving(false); }
   };
 
+  const changeCondition = async (table: RestaurantTable, condition: number) => {
+    setSaving(true);
+    try {
+      await tableApi.setTableCondition(table, condition);
+      setFeedback({ severity: 'success', message: 'Table condition updated.' });
+      reload();
+    } catch (conditionError) {
+      setFeedback({ severity: 'error', message: getApiErrorMessage(conditionError) });
+      reload();
+    } finally { setSaving(false); }
+  };
+
   const addTable = () => { setEditing(null); setFormOpen(true); };
 
   return (
@@ -85,13 +97,18 @@ export function TableManagementPage() {
           <EmptyState title={filter === 'all' ? 'No tables yet' : `No ${filter} tables`} description="Add tables to an active restaurant area."
             action={canManage && <Button variant="contained" onClick={addTable}>Add table</Button>} /> :
           <TableContainer><Table aria-label="Restaurant tables">
-            <TableHead><TableRow><TableCell>Table number</TableCell><TableCell>Area</TableCell><TableCell>Capacity</TableCell><TableCell>Type</TableCell><TableCell>Display order</TableCell><TableCell>Status</TableCell><TableCell align="right">Actions</TableCell></TableRow></TableHead>
+            <TableHead><TableRow><TableCell>Table number</TableCell><TableCell>Area</TableCell><TableCell>Capacity</TableCell><TableCell>Type</TableCell><TableCell>Display order</TableCell><TableCell>Activation</TableCell><TableCell>Current status</TableCell><TableCell align="right">Actions</TableCell></TableRow></TableHead>
             <TableBody>{tables.map((table) => <TableRow key={table.id}>
               <TableCell component="th" scope="row" sx={{ fontWeight: 700 }}>{table.tableNumber}{table.name && <Typography variant="caption" display="block">{table.name}</Typography>}</TableCell>
               <TableCell sx={{ maxWidth: 380, overflowWrap: 'anywhere' }}>{areas.find(area => area.id === table.areaId)?.name ?? '—'}</TableCell><TableCell>{table.capacity}</TableCell><TableCell>{tableTypes[table.tableType]}</TableCell>
               <TableCell>{table.displayOrder}</TableCell>
               <TableCell><Chip size="small" label={table.isActive ? 'Active' : 'Inactive'} color={table.isActive ? 'success' : 'default'} /></TableCell>
+              <TableCell><Chip size="small" label={tableStatuses[table.currentStatus]?.label ?? 'Unknown'} color={tableStatuses[table.currentStatus]?.color ?? 'default'} /></TableCell>
               <TableCell align="right">{canManage && <Stack direction="row" spacing={1} justifyContent="flex-end">
+                {table.isActive && [0, 4, 5].includes(table.currentStatus) && <TextField select size="small" label="Condition" value={table.currentStatus === 4 ? 1 : table.currentStatus === 5 ? 2 : 0}
+                  disabled={saving} onChange={event => void changeCondition(table, Number(event.target.value))} sx={{ minWidth: 150 }}>
+                  <MenuItem value={0}>Ready</MenuItem><MenuItem value={1}>Cleaning</MenuItem><MenuItem value={2}>Out Of Service</MenuItem>
+                </TextField>}
                 <Button disabled={saving} aria-label={`Edit ${table.tableNumber}`} onClick={() => { setEditing(table); setFormOpen(true); }}>Edit</Button>
                 <Button disabled={saving} color={table.isActive ? 'warning' : 'primary'} aria-label={`${table.isActive ? 'Deactivate' : 'Activate'} ${table.tableNumber}`}
                   onClick={() => setStatusTarget(table)}>{table.isActive ? 'Deactivate' : 'Activate'}</Button>
