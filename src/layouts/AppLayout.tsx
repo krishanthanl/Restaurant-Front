@@ -1,3 +1,5 @@
+import { useAuth } from '../features/authentication/useAuth';
+import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -9,14 +11,17 @@ import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import RestaurantMenuRoundedIcon from '@mui/icons-material/RestaurantMenuRounded';
 import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneRounded';
+import RoomOutlinedIcon from '@mui/icons-material/RoomOutlined';
 
 const drawerWidth = 252;
 const navigation = [
+  { label: 'Areas', path: '/restaurant/areas', icon: <RoomOutlinedIcon /> },
   { label: 'Menu items', path: '/menu/items', icon: <RestaurantMenuRoundedIcon /> },
   { label: 'Categories', path: '/menu/categories', icon: <CategoryOutlinedIcon /> },
 ];
 
 export function AppLayout() {
+  const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -65,11 +70,12 @@ export function AppLayout() {
           </Box>
           <Tooltip title="Notifications"><IconButton><NotificationsNoneRoundedIcon /></IconButton></Tooltip>
           <Divider orientation="vertical" flexItem sx={{ my: 1.5 }} />
-          <Avatar sx={{ bgcolor: 'primary.main', width: 38, height: 38 }}>A</Avatar>
+          <Avatar sx={{ bgcolor: 'primary.main', width: 38, height: 38 }}>{user?.fullName.charAt(0)}</Avatar>
           <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
-            <Typography variant="body2" fontWeight={700}>Administrator</Typography>
-            <Typography variant="caption" color="text.secondary">Menu manager</Typography>
+            <Typography variant="body2" fontWeight={700}>{user?.fullName}</Typography>
+            <Typography variant="caption" color="text.secondary">{user?.role}</Typography>
           </Box>
+          <Tooltip title="Log out"><IconButton aria-label="Log out" onClick={() => { logout(); navigate("/login", { replace: true }); }}><LogoutRoundedIcon /></IconButton></Tooltip>
         </Toolbar>
       </AppBar>
       <Box component="nav" sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}>

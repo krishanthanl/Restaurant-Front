@@ -1,3 +1,4 @@
+import { tokenStore } from '../features/authentication/tokenStore';
 import axios, { AxiosError } from 'axios';
 
 export interface ApiProblem {
@@ -14,15 +15,19 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  const accessToken = window.localStorage.getItem('access_token');
-  if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
+  const accessToken = tokenStore.get();
+  if (accessToken && config.url !== '/auth/login') config.headers.Authorization = `Bearer ${accessToken}`;
   return config;
 });
 
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    if (error.response?.status === 401) window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+    const sentToken = error.config?.headers.Authorization;
+    if (error.response?.status === 401 && sentToken && sentToken === `Bearer ${tokenStore.get()}`) {
+      tokenStore.clear();
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+    }
     return Promise.reject(error);
   },
 );
