@@ -8,6 +8,7 @@ import { MenuItemsPage } from './features/menu/pages/MenuItemsPage';
 import { AreaManagementPage } from './features/areas/pages/AreaManagementPage';
 
 import { TableManagementPage } from './features/tables/pages/TableManagementPage';
+import { TableDashboardPage } from './features/tables/pages/TableDashboardPage';
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
+          <Route path="restaurant/table-dashboard" element={<TableDashboardPage />} />
           <Route path="restaurant/tables" element={<TableManagementPage />} />
           <Route path="restaurant/areas" element={<AreaManagementPage />} />
           <Route index element={<Navigate to="/menu/items" replace />} />

@@ -17,6 +17,7 @@ import TableRestaurantOutlinedIcon from '@mui/icons-material/TableRestaurantOutl
 
 const drawerWidth = 252;
 const navigation = [
+  { label: 'Table dashboard', path: '/restaurant/table-dashboard', icon: <TableRestaurantOutlinedIcon /> },
   { label: 'Tables', path: '/restaurant/tables', icon: <TableRestaurantOutlinedIcon /> },
   { label: 'Areas', path: '/restaurant/areas', icon: <RoomOutlinedIcon /> },
   { label: 'Menu items', path: '/menu/items', icon: <RestaurantMenuRoundedIcon /> },
