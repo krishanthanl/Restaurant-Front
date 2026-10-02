@@ -13,8 +13,11 @@ import RestaurantMenuRoundedIcon from '@mui/icons-material/RestaurantMenuRounded
 import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneRounded';
 import RoomOutlinedIcon from '@mui/icons-material/RoomOutlined';
 
+import TableRestaurantOutlinedIcon from '@mui/icons-material/TableRestaurantOutlined';
+
 const drawerWidth = 252;
 const navigation = [
+  { label: 'Tables', path: '/restaurant/tables', icon: <TableRestaurantOutlinedIcon /> },
   { label: 'Areas', path: '/restaurant/areas', icon: <RoomOutlinedIcon /> },
   { label: 'Menu items', path: '/menu/items', icon: <RestaurantMenuRoundedIcon /> },
   { label: 'Categories', path: '/menu/categories', icon: <CategoryOutlinedIcon /> },

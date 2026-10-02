@@ -7,12 +7,15 @@ import { MenuItemFormPage } from './features/menu/pages/MenuItemFormPage';
 import { MenuItemsPage } from './features/menu/pages/MenuItemsPage';
 import { AreaManagementPage } from './features/areas/pages/AreaManagementPage';
 
+import { TableManagementPage } from './features/tables/pages/TableManagementPage';
+
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
+          <Route path="restaurant/tables" element={<TableManagementPage />} />
           <Route path="restaurant/areas" element={<AreaManagementPage />} />
           <Route index element={<Navigate to="/menu/items" replace />} />
           <Route path="menu/categories" element={<CategoryManagementPage />} />

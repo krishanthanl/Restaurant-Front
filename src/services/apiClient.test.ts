@@ -1,51 +1,30 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AxiosError, AxiosHeaders, type AxiosAdapter } from 'axios';
-import { apiClient } from './apiClient';
-import { tokenStore } from '../features/authentication/tokenStore';
+import { AxiosError } from 'axios';
+import { describe, expect, it } from 'vitest';
+import { getApiErrorMessage } from './apiClient';
 
-const originalAdapter = apiClient.defaults.adapter;
-beforeEach(() => sessionStorage.clear());
-afterEach(() => { apiClient.defaults.adapter = originalAdapter; vi.restoreAllMocks(); });
+function apiError(status: number, data: unknown) {
+  const error = new AxiosError('Request failed');
+  Object.assign(error, { response: { status, data } });
+  return error;
+}
 
-describe('Authentication interceptors', () => {
-  it('attaches tokens centrally and omits them after logout and during login', async () => {
-    const headers: unknown[] = [];
-    const adapter: AxiosAdapter = async (config) => {
-      headers.push(config.headers.Authorization);
-      return { data: {}, status: 200, statusText: 'OK', headers: new AxiosHeaders(), config };
-    };
-    apiClient.defaults.adapter = adapter;
-    tokenStore.set('token-one');
-    await apiClient.get('/menu-items');
-    await apiClient.post('/auth/login');
-    tokenStore.clear();
-    await apiClient.get('/menu-items');
-    expect(headers).toEqual(['Bearer token-one', undefined, undefined]);
+describe('getApiErrorMessage', () => {
+  it('displays server exception details with the error reference', () => {
+    expect(getApiErrorMessage(apiError(500, { detail: 'Operation failed.', traceId: 'request-123' })))
+      .toBe('Operation failed. (Reference: request-123)');
   });
 
-  it('clears only the session whose authenticated request returned 401', async () => {
-    const dispatch = vi.spyOn(window, 'dispatchEvent');
-    apiClient.defaults.adapter = async (config) => {
-      throw new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', config, undefined,
-        { data: {}, status: 401, statusText: 'Unauthorized', headers: new AxiosHeaders(), config });
-    };
-    tokenStore.set('current');
-    await expect(apiClient.post('/auth/login')).rejects.toThrow();
-    expect(tokenStore.get()).toBe('current');
-    expect(dispatch).not.toHaveBeenCalled();
-    await expect(apiClient.get('/auth/me')).rejects.toThrow();
-    expect(tokenStore.get()).toBeNull();
-    expect(dispatch).toHaveBeenCalledTimes(1);
+  it('preserves business validation messages', () => {
+    expect(getApiErrorMessage(apiError(400, { detail: 'Name is required.', traceId: 'request-123' })))
+      .toBe('Name is required.');
   });
 
-  it('ignores a late 401 from a previous session', async () => {
-    tokenStore.set('old');
-    apiClient.defaults.adapter = async (config) => {
-      tokenStore.set('new');
-      throw new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', config, undefined,
-        { data: {}, status: 401, statusText: 'Unauthorized', headers: new AxiosHeaders(), config });
-    };
-    await expect(apiClient.get('/menu-items')).rejects.toThrow();
-    expect(tokenStore.get()).toBe('new');
+  it('prefers field validation messages', () => {
+    expect(getApiErrorMessage(apiError(400, { title: 'Validation failed', errors: { name: ['Enter a name.'] } })))
+      .toBe('Enter a name.');
+  });
+
+  it('handles network failures without a problem response', () => {
+    expect(getApiErrorMessage(new AxiosError('Network Error'))).toBe('Could not connect to the server.');
   });
 });

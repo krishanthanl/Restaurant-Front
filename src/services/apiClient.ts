@@ -2,8 +2,12 @@ import { tokenStore } from '../features/authentication/tokenStore';
 import axios, { AxiosError } from 'axios';
 
 export interface ApiProblem {
+  status?: number;
   title?: string;
   detail?: string;
+  instance?: string;
+  exceptionType?: string;
+  exceptionDetails?: string;
   errors?: Record<string, string[]>;
   traceId?: string;
 }
@@ -36,7 +40,10 @@ export function getApiErrorMessage(error: unknown): string {
   if (axios.isAxiosError<ApiProblem>(error)) {
     const problem = error.response?.data;
     const validationMessage = problem?.errors && Object.values(problem.errors).flat()[0];
-    return validationMessage ?? problem?.detail ?? problem?.title ?? (error.code === 'ECONNABORTED' ? 'The request timed out.' : 'Could not connect to the server.');
+    const message = validationMessage ?? problem?.detail ?? problem?.title ?? (error.code === 'ECONNABORTED' ? 'The request timed out.' : 'Could not connect to the server.');
+    return error.response && error.response.status >= 500 && problem?.traceId
+      ? `${message} (Reference: ${problem.traceId})`
+      : message;
   }
   return error instanceof Error ? error.message : 'An unexpected error occurred.';
 }
