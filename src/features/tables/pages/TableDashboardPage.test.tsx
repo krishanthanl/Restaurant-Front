@@ -2,11 +2,13 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TableDashboardPage } from './TableDashboardPage';
+import { diningSessionApi } from '../api/diningSessionApi';
 import { tableApi } from '../api/tableApi';
 import { areaApi } from '../../areas/api/areaApi';
 import { useAuth } from '../../authentication/useAuth';
 import type { RestaurantTable } from '../types/tableTypes';
 
+vi.mock('../api/diningSessionApi', () => ({ diningSessionApi: { waiters: vi.fn(), active: vi.fn(), open: vi.fn(), close: vi.fn() } }));
 vi.mock('../api/tableApi', () => ({ tableApi: { getTables: vi.fn() } }));
 vi.mock('../../areas/api/areaApi', () => ({ areaApi: { getAreas: vi.fn() } }));
 vi.mock('../../authentication/useAuth', () => ({ useAuth: vi.fn() }));
@@ -14,6 +16,7 @@ const base: RestaurantTable = { id: 't0', restaurantId: 'r1', areaId: 'hall', ta
 const tables = Array.from({ length: 6 }, (_, index) => ({ ...base, id: `t${index}`, tableNumber: String(index + 1), areaId: index === 1 ? 'patio' : 'hall', currentStatus: index }));
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(diningSessionApi.waiters).mockResolvedValue([]);
   vi.mocked(useAuth).mockReturnValue({ user: { role: 'Manager' } } as ReturnType<typeof useAuth>);
   vi.mocked(tableApi.getTables).mockResolvedValue([...tables, { ...base, id: 'inactive', tableNumber: '7', isActive: false }]);
   vi.mocked(areaApi.getAreas).mockResolvedValue(['hall', 'patio'].map((id, index) => ({ id, restaurantId: 'r1', name: id === 'hall' ? 'Hall' : 'Patio', description: null, displayOrder: index, isActive: true, createdAtUtc: '', updatedAtUtc: null, rowVersion: 'v1' })));
@@ -76,4 +79,49 @@ it('handles an empty restaurant', async () => {
   vi.mocked(tableApi.getTables).mockResolvedValue([]);
   render(<TableDashboardPage />);
   expect(await screen.findByText('No tables yet')).toBeInTheDocument();
+});
+
+it('opens a dining session and refreshes occupied status', async () => {
+  vi.mocked(tableApi.getTables).mockResolvedValueOnce([base]).mockResolvedValueOnce([{ ...base, currentStatus: 1 }]);
+  const user = userEvent.setup(); render(<TableDashboardPage />);
+  await user.click(await screen.findByRole('button', { name: 'Table 1' }));
+  const guests = screen.getByRole('spinbutton', { name: 'Number of guests' });
+  await user.clear(guests); await user.type(guests, '2');
+  await user.click(screen.getByRole('button', { name: 'Open Table' }));
+  await waitFor(() => expect(diningSessionApi.open).toHaveBeenCalledWith('t0', 2, ''));
+  await waitFor(() => expect(within(screen.getByRole('button', { name: 'Table 1' })).getByText('Occupied')).toBeInTheDocument());
+});
+it('displays active session details and closes the visit', async () => {
+  const session = { id: 's1', restaurantId: 'r1', guestCount: 3, openedBy: 'u1', waiterId: 'w1', waiterName: 'Nimal', openedAt: '2026-10-02T10:00:00Z', status: 0, closedAt: null, tableIds: ['t0'] };
+  vi.mocked(tableApi.getTables).mockResolvedValueOnce([{ ...base, currentStatus: 1 }]).mockResolvedValueOnce([base]);
+  vi.mocked(diningSessionApi.active).mockResolvedValue(session);
+  const user = userEvent.setup(); render(<TableDashboardPage />);
+  await user.click(await screen.findByRole('button', { name: 'Table 1' }));
+  expect(await screen.findByText('Guests: 3')).toBeInTheDocument();
+  expect(screen.getByText('Waiter: Nimal')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Close dining session' }));
+  await waitFor(() => expect(diningSessionApi.close).toHaveBeenCalledWith('s1'));
+  await waitFor(() => expect(within(screen.getByRole('button', { name: 'Table 1' })).getByText('Available')).toBeInTheDocument());
+});
+it('keeps the dialog open with an error when opening conflicts', async () => {
+  vi.mocked(diningSessionApi.open).mockRejectedValue(new Error('Table already occupied'));
+  const user = userEvent.setup(); render(<TableDashboardPage />);
+  await user.click(await screen.findByRole('button', { name: 'Table 1' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Open Table' })).toBeEnabled());
+  await user.click(screen.getByRole('button', { name: 'Open Table' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Table already occupied');
+});
+
+it('validates capacity and sends the selected waiter', async () => {
+  vi.mocked(diningSessionApi.waiters).mockResolvedValue([{ id: 'w1', fullName: 'Nimal' }]);
+  const user = userEvent.setup(); render(<TableDashboardPage />);
+  await user.click(await screen.findByRole('button', { name: 'Table 1' }));
+  const guests = screen.getByRole('spinbutton', { name: 'Number of guests' });
+  await user.clear(guests); await user.type(guests, '5');
+  expect(screen.getByRole('button', { name: 'Open Table' })).toBeDisabled();
+  await user.clear(guests); await user.type(guests, '4');
+  await user.click(screen.getByRole('combobox', { name: 'Waiter' }));
+  await user.click(await screen.findByRole('option', { name: 'Nimal' }));
+  await user.click(screen.getByRole('button', { name: 'Open Table' }));
+  await waitFor(() => expect(diningSessionApi.open).toHaveBeenCalledWith('t0', 4, 'w1'));
 });

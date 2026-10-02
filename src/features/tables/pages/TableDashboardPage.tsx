@@ -7,12 +7,21 @@ import { getApiErrorMessage } from '../../../services/apiClient';
 import { useAuth } from '../../authentication/useAuth';
 import { areaApi } from '../../areas/api/areaApi';
 import type { Area } from '../../areas/types/areaTypes';
+import { diningSessionApi, type DiningSession, type Waiter } from '../api/diningSessionApi';
 import { tableApi } from '../api/tableApi';
 import { tableStatuses, tableTypes, type RestaurantTable } from '../types/tableTypes';
 
 export function TableDashboardPage() {
   const { user } = useAuth();
   const canManage = user?.role === 'Admin' || user?.role === 'Manager';
+  const canOpen = canManage || user?.role === 'Waiter';
+  const [guests, setGuests] = useState('1');
+  const [waiterId, setWaiterId] = useState('');
+  const [waiters, setWaiters] = useState<Waiter[]>([]);
+  const [session, setSession] = useState<DiningSession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [areas, setAreas] = useState<Area[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [areaId, setAreaId] = useState('');
@@ -43,6 +52,34 @@ export function TableDashboardPage() {
     return () => controller.abort();
   }, [revision, canManage]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    setSession(null); setSessionError(null); setGuests('1'); setWaiterId('');
+    if (!selectedId || !canOpen) return () => controller.abort();
+    const table = tables.find(item => item.id === selectedId);
+    setSessionLoading(true);
+    const load = table?.currentStatus === 1
+      ? diningSessionApi.active(selectedId, controller.signal).then(value => { if (!controller.signal.aborted) setSession(value); })
+      : diningSessionApi.waiters(controller.signal).then(value => { if (!controller.signal.aborted) setWaiters(value); });
+    load.catch((e: unknown) => { if (!controller.signal.aborted) setSessionError(getApiErrorMessage(e)); })
+      .finally(() => { if (!controller.signal.aborted) setSessionLoading(false); });
+    return () => controller.abort();
+  }, [selectedId, canOpen, tables]);
+
+  const openSession = async () => {
+    if (!selectedId) return;
+    setSaving(true); setSessionError(null);
+    try { await diningSessionApi.open(selectedId, Number(guests), waiterId); refresh(); }
+    catch (e: unknown) { setSessionError(getApiErrorMessage(e)); }
+    finally { setSaving(false); }
+  };
+  const closeSession = async () => {
+    if (!session) return;
+    setSaving(true); setSessionError(null);
+    try { await diningSessionApi.close(session.id); refresh(); }
+    catch (e: unknown) { setSessionError(getApiErrorMessage(e)); }
+    finally { setSaving(false); }
+  };
   const areaTables = tables.filter(table => !areaId || table.areaId === areaId);
   const visibleTables = areaTables.filter(table => status === 'all' || (table.isActive && table.currentStatus === Number(status)));
   const selected = !loading && !error ? tables.find(table => table.id === selectedId && table.isActive) : undefined;
@@ -89,7 +126,7 @@ export function TableDashboardPage() {
           </Box>;
         })}
     </>}
-    <Dialog open={Boolean(selected)} onClose={() => setSelectedId(null)} fullWidth maxWidth="xs">
+    <Dialog open={Boolean(selected)} onClose={() => { if (!saving) setSelectedId(null); }} fullWidth maxWidth="xs">
       <DialogTitle>Table {selected?.tableNumber}</DialogTitle>
       <DialogContent>{selected && <Stack spacing={2}>
         {selected.name && <Typography>{selected.name}</Typography>}
@@ -98,8 +135,26 @@ export function TableDashboardPage() {
         <Typography>Type: {tableTypes[selected.tableType] ?? 'Unknown'}</Typography>
         <Typography>Status: {tableStatuses[selected.currentStatus]?.label ?? 'Unknown'}</Typography>
         <Typography>Activation: Active</Typography>
+        {sessionError && <Typography role="alert" color="error">{sessionError}</Typography>}
+        {sessionLoading && <Typography>Loading session details…</Typography>}
+        {canOpen && selected.currentStatus === 0 && <>
+          <TextField label="Number of guests" type="number" value={guests} onChange={event => setGuests(event.target.value)} disabled={saving} slotProps={{ htmlInput: { min: 1, max: selected.capacity, step: 1 } }} />
+          <TextField select label="Waiter" value={waiterId} onChange={event => setWaiterId(event.target.value)} disabled={saving || sessionLoading}>
+            <MenuItem value="">Unassigned</MenuItem>{waiters.map(waiter => <MenuItem key={waiter.id} value={waiter.id}>{waiter.fullName}</MenuItem>)}
+          </TextField>
+        </>}
+        {session && <>
+          <Typography>Guests: {session.guestCount}</Typography>
+          <Typography>Waiter: {session.waiterName ?? 'Unassigned'}</Typography>
+          <Typography>Opened: {new Date(session.openedAt).toLocaleString()}</Typography>
+          <Typography variant="body2" color="text.secondary">Session: {session.id}</Typography>
+        </>}
       </Stack>}</DialogContent>
-      <DialogActions><Button variant="contained" onClick={() => setSelectedId(null)} sx={{ minHeight: 48 }}>Close details</Button></DialogActions>
+      <DialogActions>
+        {canOpen && selected?.currentStatus === 0 && <Button variant="contained" onClick={openSession} disabled={saving || sessionLoading || !Number.isInteger(Number(guests)) || Number(guests) < 1 || Number(guests) > selected.capacity}>Open Table</Button>}
+        {session && <Button onClick={closeSession} disabled={saving}>Close dining session</Button>}
+        <Button disabled={saving} variant="contained" onClick={() => setSelectedId(null)} sx={{ minHeight: 48 }}>Close details</Button></DialogActions>
     </Dialog>
   </>;
 }
+
