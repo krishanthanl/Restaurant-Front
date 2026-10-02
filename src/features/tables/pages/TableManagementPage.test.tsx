@@ -61,4 +61,32 @@ it('edits and confirms deactivation', async () => {
 it('hides mutation controls for waiters', async () => {
  vi.mocked(useAuth).mockReturnValue({ user: { role: 'Waiter' } } as ReturnType<typeof useAuth>);
  render(<TableManagementPage />); await screen.findByRole('table'); expect(screen.queryByRole('button', { name: 'Add table' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'Edit T1' })).not.toBeInTheDocument();
+ expect(tableApi.getTables).toHaveBeenCalledWith('active', undefined, expect.any(AbortSignal));
+ expect(screen.queryByRole('combobox', { name: 'Status' })).not.toBeInTheDocument();
+ expect(screen.queryByRole('button', { name: 'Deactivate T1' })).not.toBeInTheDocument();
+});
+
+it('confirms activation of an inactive table', async () => {
+ const inactive = { ...table, isActive: false };
+ vi.mocked(tableApi.getTables).mockResolvedValue([inactive]);
+ const user = userEvent.setup(); render(<TableManagementPage />);
+ await user.click(await screen.findByRole('button', { name: 'Activate T1' }));
+ expect(tableApi.setTableStatus).not.toHaveBeenCalled();
+ await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' }));
+ await waitFor(() => expect(tableApi.setTableStatus).toHaveBeenCalledWith(inactive, true));
+ await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+});
+
+it('keeps the table and shows the error when deactivation is blocked', async () => {
+ vi.mocked(tableApi.setTableStatus).mockRejectedValue(new Error('A table with an active dining session cannot be deactivated.'));
+ const user = userEvent.setup(); render(<TableManagementPage />);
+ await user.click(await screen.findByRole('button', { name: 'Deactivate T1' }));
+ await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+ await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+ expect(tableApi.setTableStatus).not.toHaveBeenCalled();
+ await user.click(screen.getByRole('button', { name: 'Deactivate T1' }));
+ await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' }));
+ expect(await screen.findByText('A table with an active dining session cannot be deactivated.')).toBeInTheDocument();
+ expect(screen.getByRole('dialog')).toBeInTheDocument();
+ expect(within(screen.getByRole('table', { hidden: true })).getByText('Active')).toBeInTheDocument();
 });

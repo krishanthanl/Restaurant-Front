@@ -36,7 +36,7 @@ export function TableManagementPage() {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError(null);
-    Promise.all([tableApi.getTables(filter, areaId || undefined, controller.signal), areaApi.getAreas('all', controller.signal)]).then(([data, loadedAreas]) => {
+    Promise.all([tableApi.getTables(canManage ? filter : 'active', areaId || undefined, controller.signal), areaApi.getAreas('all', controller.signal)]).then(([data, loadedAreas]) => {
       if (!controller.signal.aborted) { setTables(data); setAreas(loadedAreas); }
     }).catch((loadError: unknown) => {
       if (!controller.signal.aborted) setError(getApiErrorMessage(loadError));
@@ -44,7 +44,7 @@ export function TableManagementPage() {
       if (!controller.signal.aborted) setLoading(false);
     });
     return () => controller.abort();
-  }, [filter, areaId, revision]);
+  }, [filter, areaId, revision, canManage]);
 
   const submit = async (input: TableInput) => {
     setSaving(true);
@@ -78,9 +78,9 @@ export function TableManagementPage() {
         <TextField select label="Area" value={areaId} disabled={saving} onChange={event => setAreaId(event.target.value)} sx={{ mb: 3, mr: 2, minWidth: 180 }}>
           <MenuItem value="">All areas</MenuItem>{areas.map(area => <MenuItem key={area.id} value={area.id}>{area.name}{!area.isActive && ' (Inactive)'}</MenuItem>)}
         </TextField>
-        <TextField select label="Status" value={filter} disabled={saving} onChange={(event) => setFilter(event.target.value as TableFilter)} sx={{ mb: 3, minWidth: 180 }}>
+        {canManage && <TextField select label="Status" value={filter} disabled={saving} onChange={(event) => setFilter(event.target.value as TableFilter)} sx={{ mb: 3, minWidth: 180 }}>
           <MenuItem value="all">All</MenuItem><MenuItem value="active">Active</MenuItem><MenuItem value="inactive">Inactive</MenuItem>
-        </TextField>
+        </TextField>}
         {loading ? <LoadingState label="Loading tables…" /> : error ? <ErrorState message={error} onRetry={reload} /> : tables.length === 0 ?
           <EmptyState title={filter === 'all' ? 'No tables yet' : `No ${filter} tables`} description="Add tables to an active restaurant area."
             action={canManage && <Button variant="contained" onClick={addTable}>Add table</Button>} /> :
@@ -102,10 +102,11 @@ export function TableManagementPage() {
       <TableFormDialog open={formOpen} table={editing} areas={areas} saving={saving} onClose={() => { setFormOpen(false); setEditing(null); }} onSubmit={submit} />
       <Dialog open={Boolean(statusTarget)} onClose={() => !saving && setStatusTarget(null)}>
         <DialogTitle>{statusTarget?.isActive ? 'Deactivate table?' : 'Activate table?'}</DialogTitle>
-        <DialogContent><Typography color="text.secondary">{statusTarget?.isActive ? `${statusTarget.tableNumber} will be removed from active table lists. You can reactivate it later.` : `${statusTarget?.tableNumber} will appear in active table lists again.`}</Typography></DialogContent>
+        <DialogContent><Typography color="text.secondary">{statusTarget?.isActive ? `${statusTarget.tableNumber} will be unavailable for new dining sessions. Historical records will be preserved. Tables with an active dining session cannot be deactivated. You can reactivate it later.` : `${statusTarget?.tableNumber} will appear in active table lists again.`}</Typography></DialogContent>
         <DialogActions><Button onClick={() => setStatusTarget(null)} disabled={saving}>Cancel</Button><Button variant="contained" color={statusTarget?.isActive ? 'warning' : 'primary'} loading={saving} onClick={() => void changeStatus()}>Confirm</Button></DialogActions>
       </Dialog>
       <FeedbackSnackbar feedback={feedback} onClose={() => setFeedback(null)} />
     </>
   );
 }
+
