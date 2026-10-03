@@ -2,13 +2,13 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TableDashboardPage } from './TableDashboardPage';
-import { diningSessionApi } from '../api/diningSessionApi';
+import { diningSessionApi } from '../../dining-sessions/api/diningSessionApi';
 import { tableApi } from '../api/tableApi';
 import { areaApi } from '../../areas/api/areaApi';
 import { useAuth } from '../../authentication/useAuth';
 import type { RestaurantTable } from '../types/tableTypes';
 
-vi.mock('../api/diningSessionApi', () => ({ diningSessionApi: { waiters: vi.fn(), active: vi.fn(), open: vi.fn(), close: vi.fn() } }));
+vi.mock('../../dining-sessions/api/diningSessionApi', () => ({ diningSessionApi: { waiters: vi.fn(), active: vi.fn(), open: vi.fn(), close: vi.fn(), update: vi.fn(), cancel: vi.fn() } }));
 vi.mock('../api/tableApi', () => ({ tableApi: { getTables: vi.fn() } }));
 vi.mock('../../areas/api/areaApi', () => ({ areaApi: { getAreas: vi.fn() } }));
 vi.mock('../../authentication/useAuth', () => ({ useAuth: vi.fn() }));
@@ -88,11 +88,11 @@ it('opens a dining session and refreshes occupied status', async () => {
   const guests = screen.getByRole('spinbutton', { name: 'Number of guests' });
   await user.clear(guests); await user.type(guests, '2');
   await user.click(screen.getByRole('button', { name: 'Open Table' }));
-  await waitFor(() => expect(diningSessionApi.open).toHaveBeenCalledWith('t0', 2, ''));
+  await waitFor(() => expect(diningSessionApi.open).toHaveBeenCalledWith('t0', 2, '', '', 'v1'));
   await waitFor(() => expect(within(screen.getByRole('button', { name: 'Table 1' })).getByText('Occupied')).toBeInTheDocument());
 });
 it('displays active session details and closes the visit', async () => {
-  const session = { id: 's1', restaurantId: 'r1', guestCount: 3, openedBy: 'u1', waiterId: 'w1', waiterName: 'Nimal', openedAt: '2026-10-02T10:00:00Z', status: 0, closedAt: null, tableIds: ['t0'] };
+  const session = { id: 's1', restaurantId: 'r1', guestCount: 3, openedBy: 'u1', waiterId: 'w1', waiterName: 'Nimal', openedAt: '2026-10-02T10:00:00Z', status: 0, closedAt: null, tableIds: ['t0'], notes: null, createdAtUtc: '', updatedAtUtc: null, cancelledAt: null, closedBy: null, cancelledBy: null, cancellationReason: null, rowVersion: 's-v1' };
   vi.mocked(tableApi.getTables).mockResolvedValueOnce([{ ...base, currentStatus: 1 }]).mockResolvedValueOnce([base]);
   vi.mocked(diningSessionApi.active).mockResolvedValue(session);
   const user = userEvent.setup(); render(<TableDashboardPage />);
@@ -100,7 +100,8 @@ it('displays active session details and closes the visit', async () => {
   expect(await screen.findByText('Guests: 3')).toBeInTheDocument();
   expect(screen.getByText('Waiter: Nimal')).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Close dining session' }));
-  await waitFor(() => expect(diningSessionApi.close).toHaveBeenCalledWith('s1'));
+  await user.click(screen.getByRole('button', { name: 'Confirm' }));
+  await waitFor(() => expect(diningSessionApi.close).toHaveBeenCalledWith('s1', 's-v1'));
   await waitFor(() => expect(within(screen.getByRole('button', { name: 'Table 1' })).getByText('Available')).toBeInTheDocument());
 });
 it('keeps the dialog open with an error when opening conflicts', async () => {
@@ -123,5 +124,56 @@ it('validates capacity and sends the selected waiter', async () => {
   await user.click(screen.getByRole('combobox', { name: 'Waiter' }));
   await user.click(await screen.findByRole('option', { name: 'Nimal' }));
   await user.click(screen.getByRole('button', { name: 'Open Table' }));
-  await waitFor(() => expect(diningSessionApi.open).toHaveBeenCalledWith('t0', 4, 'w1'));
+  await waitFor(() => expect(diningSessionApi.open).toHaveBeenCalledWith('t0', 4, 'w1', '', 'v1'));
+});
+
+
+it('opens a session with notes', async () => {
+  const user = userEvent.setup(); render(<TableDashboardPage />);
+  await user.click(await screen.findByRole('button', { name: 'Table 1' }));
+  await user.type(screen.getByRole('textbox', { name: 'Session notes' }), 'Window seat');
+  await user.click(screen.getByRole('button', { name: 'Open Table' }));
+  await waitFor(() => expect(diningSessionApi.open).toHaveBeenCalledWith('t0', 1, '', 'Window seat', 'v1'));
+});
+it('edits permitted visit details and submits the session version', async () => {
+  const session = { id: 's1', restaurantId: 'r1', guestCount: 2, openedBy: 'u1', waiterId: null, waiterName: null, openedAt: '2026-10-02T10:00:00Z', status: 0, closedAt: null, tableIds: ['t0'], notes: null, createdAtUtc: '', updatedAtUtc: null, cancelledAt: null, closedBy: null, cancelledBy: null, cancellationReason: null, rowVersion: 'version1' };
+  vi.mocked(tableApi.getTables).mockResolvedValue([{ ...base, currentStatus: 1 }]);
+  vi.mocked(diningSessionApi.active).mockResolvedValue(session);
+  vi.mocked(diningSessionApi.update).mockResolvedValue({ ...session, guestCount: 3, notes: 'Allergy', rowVersion: 'version2' });
+  const user = userEvent.setup(); render(<TableDashboardPage />);
+  await user.click(await screen.findByRole('button', { name: 'Table 1' }));
+  await user.click(await screen.findByRole('button', { name: 'Edit session' }));
+  const guests = screen.getByRole('spinbutton', { name: 'Number of guests' });
+  await user.clear(guests); await user.type(guests, '3');
+  await user.type(screen.getByRole('textbox', { name: 'Session notes' }), 'Allergy');
+  await user.click(screen.getByRole('button', { name: 'Save session' }));
+  await waitFor(() => expect(diningSessionApi.update).toHaveBeenCalledWith(session, { guestCount: 3, waiterId: null, notes: 'Allergy' }));
+  expect(await screen.findByText('Guests: 3')).toBeInTheDocument();
+});
+it('requires a cancellation reason and restricts cancellation to managers', async () => {
+  const session = { id: 's1', restaurantId: 'r1', guestCount: 2, openedBy: 'u1', waiterId: null, waiterName: null, openedAt: '2026-10-02T10:00:00Z', status: 0, closedAt: null, tableIds: ['t0'], notes: null, createdAtUtc: '', updatedAtUtc: null, cancelledAt: null, closedBy: null, cancelledBy: null, cancellationReason: null, rowVersion: 'version1' };
+  vi.mocked(tableApi.getTables).mockResolvedValue([{ ...base, currentStatus: 1 }]);
+  vi.mocked(diningSessionApi.active).mockResolvedValue(session);
+  const user = userEvent.setup(); render(<TableDashboardPage />);
+  await user.click(await screen.findByRole('button', { name: 'Table 1' }));
+  await user.click(await screen.findByRole('button', { name: 'Cancel dining session' }));
+  expect(screen.getByRole('button', { name: 'Confirm' })).toBeDisabled();
+  await user.type(screen.getByRole('textbox', { name: 'Cancellation reason' }), 'Opened in error');
+  await user.click(screen.getByRole('button', { name: 'Confirm' }));
+  await waitFor(() => expect(diningSessionApi.cancel).toHaveBeenCalledWith('s1', 'version1', 'Opened in error'));
+});
+it('does not offer opening a table in an inactive area', async () => {
+  vi.mocked(areaApi.getAreas).mockResolvedValue([{ id: 'hall', restaurantId: 'r1', name: 'Hall', description: null, displayOrder: 0, isActive: false, createdAtUtc: '', updatedAtUtc: null, rowVersion: 'v1' }]);
+  const user = userEvent.setup(); render(<TableDashboardPage />);
+  await user.click(await screen.findByRole('button', { name: 'Table 1' }));
+  expect(screen.queryByRole('button', { name: 'Open Table' })).not.toBeInTheDocument();
+});
+it('does not offer cancellation to a waiter', async () => {
+  vi.mocked(useAuth).mockReturnValue({ user: { role: 'Waiter' } } as ReturnType<typeof useAuth>);
+  vi.mocked(tableApi.getTables).mockResolvedValue([{ ...base, currentStatus: 1 }]);
+  vi.mocked(diningSessionApi.active).mockResolvedValue({ id: 's1', restaurantId: 'r1', guestCount: 2, openedBy: 'u1', waiterId: null, waiterName: null, openedAt: '2026-10-02T10:00:00Z', status: 0, closedAt: null, tableIds: ['t0'], notes: null, createdAtUtc: '', updatedAtUtc: null, cancelledAt: null, closedBy: null, cancelledBy: null, cancellationReason: null, rowVersion: 'version1' });
+  const user = userEvent.setup(); render(<TableDashboardPage />);
+  await user.click(await screen.findByRole('button', { name: 'Table 1' }));
+  await screen.findByText('Guests: 2');
+  expect(screen.queryByRole('button', { name: 'Cancel dining session' })).not.toBeInTheDocument();
 });

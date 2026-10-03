@@ -7,7 +7,11 @@ import { getApiErrorMessage } from '../../../services/apiClient';
 import { useAuth } from '../../authentication/useAuth';
 import { areaApi } from '../../areas/api/areaApi';
 import type { Area } from '../../areas/types/areaTypes';
-import { diningSessionApi, type DiningSession, type Waiter } from '../api/diningSessionApi';
+import { diningSessionApi, type DiningSession, type Waiter } from '../../dining-sessions/api/diningSessionApi';
+import { OpenDiningSessionDialog } from '../../dining-sessions/components/OpenDiningSessionDialog';
+import { DiningSessionDetailsDialog } from '../../dining-sessions/components/DiningSessionDetailsDialog';
+import { DiningSessionActionDialog } from '../../dining-sessions/components/DiningSessionActionDialog';
+import type { SessionInput } from '../../dining-sessions/types/diningSessionTypes';
 import { tableApi } from '../api/tableApi';
 import { tableStatuses, tableTypes, type RestaurantTable } from '../types/tableTypes';
 
@@ -15,6 +19,9 @@ export function TableDashboardPage() {
   const { user } = useAuth();
   const canManage = user?.role === 'Admin' || user?.role === 'Manager';
   const canOpen = canManage || user?.role === 'Waiter';
+  const [notes, setNotes] = useState('');
+  const [action, setAction] = useState<'close' | 'cancel' | null>(null);
+  const [reason, setReason] = useState('');
   const [guests, setGuests] = useState('1');
   const [waiterId, setWaiterId] = useState('');
   const [waiters, setWaiters] = useState<Waiter[]>([]);
@@ -54,12 +61,12 @@ export function TableDashboardPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setSession(null); setSessionError(null); setGuests('1'); setWaiterId('');
+    setSession(null); setSessionError(null); setGuests('1'); setWaiterId(''); setNotes(''); setAction(null); setReason('');
     if (!selectedId || !canOpen) return () => controller.abort();
     const table = tables.find(item => item.id === selectedId);
     setSessionLoading(true);
     const load = table?.currentStatus === 1
-      ? diningSessionApi.active(selectedId, controller.signal).then(value => { if (!controller.signal.aborted) setSession(value); })
+      ? Promise.all([diningSessionApi.active(selectedId, controller.signal), diningSessionApi.waiters(controller.signal)]).then(([value, options]) => { if (!controller.signal.aborted) { setSession(value); setWaiters(options); } })
       : diningSessionApi.waiters(controller.signal).then(value => { if (!controller.signal.aborted) setWaiters(value); });
     load.catch((e: unknown) => { if (!controller.signal.aborted) setSessionError(getApiErrorMessage(e)); })
       .finally(() => { if (!controller.signal.aborted) setSessionLoading(false); });
@@ -69,14 +76,24 @@ export function TableDashboardPage() {
   const openSession = async () => {
     if (!selectedId) return;
     setSaving(true); setSessionError(null);
-    try { await diningSessionApi.open(selectedId, Number(guests), waiterId); refresh(); }
+    try { await diningSessionApi.open(selectedId, Number(guests), waiterId, notes, tables.find(t => t.id === selectedId)!.rowVersion); refresh(); }
     catch (e: unknown) { setSessionError(getApiErrorMessage(e)); }
     finally { setSaving(false); }
   };
-  const closeSession = async () => {
+  const endSession = async () => {
+    if (!session || !action) return;
+    setSaving(true); setSessionError(null);
+    try {
+      if (action === 'cancel') await diningSessionApi.cancel(session.id, session.rowVersion, reason);
+      else await diningSessionApi.close(session.id, session.rowVersion);
+      setAction(null); refresh();
+    } catch (e: unknown) { setSessionError(getApiErrorMessage(e)); setAction(null); }
+    finally { setSaving(false); }
+  };
+  const saveSession = async (input: SessionInput) => {
     if (!session) return;
     setSaving(true); setSessionError(null);
-    try { await diningSessionApi.close(session.id); refresh(); }
+    try { setSession(await diningSessionApi.update(session, input)); }
     catch (e: unknown) { setSessionError(getApiErrorMessage(e)); }
     finally { setSaving(false); }
   };
@@ -137,24 +154,17 @@ export function TableDashboardPage() {
         <Typography>Activation: Active</Typography>
         {sessionError && <Typography role="alert" color="error">{sessionError}</Typography>}
         {sessionLoading && <Typography>Loading session details…</Typography>}
-        {canOpen && selected.currentStatus === 0 && <>
-          <TextField label="Number of guests" type="number" value={guests} onChange={event => setGuests(event.target.value)} disabled={saving} slotProps={{ htmlInput: { min: 1, max: selected.capacity, step: 1 } }} />
-          <TextField select label="Waiter" value={waiterId} onChange={event => setWaiterId(event.target.value)} disabled={saving || sessionLoading}>
-            <MenuItem value="">Unassigned</MenuItem>{waiters.map(waiter => <MenuItem key={waiter.id} value={waiter.id}>{waiter.fullName}</MenuItem>)}
-          </TextField>
-        </>}
-        {session && <>
-          <Typography>Guests: {session.guestCount}</Typography>
-          <Typography>Waiter: {session.waiterName ?? 'Unassigned'}</Typography>
-          <Typography>Opened: {new Date(session.openedAt).toLocaleString()}</Typography>
-          <Typography variant="body2" color="text.secondary">Session: {session.id}</Typography>
-        </>}
+        {canOpen && selected.currentStatus === 0 && areas.find(a => a.id === selected.areaId)?.isActive &&
+          <OpenDiningSessionDialog guests={guests} waiterId={waiterId} notes={notes} capacity={selected.capacity} waiters={waiters}
+            disabled={saving || sessionLoading || Boolean(sessionError)} onGuests={setGuests} onWaiter={setWaiterId} onNotes={setNotes} onOpen={openSession} />}
+        {session && <DiningSessionDetailsDialog key={session.rowVersion} session={session} capacity={selected.capacity} waiters={waiters}
+          saving={saving} canCancel={canManage} onSave={saveSession} onAction={value => { setReason(''); setAction(value); }} />}
+        {sessionError && <Button disabled={saving} onClick={refresh}>Refresh session and tables</Button>}
       </Stack>}</DialogContent>
       <DialogActions>
-        {canOpen && selected?.currentStatus === 0 && <Button variant="contained" onClick={openSession} disabled={saving || sessionLoading || !Number.isInteger(Number(guests)) || Number(guests) < 1 || Number(guests) > selected.capacity}>Open Table</Button>}
-        {session && <Button onClick={closeSession} disabled={saving}>Close dining session</Button>}
         <Button disabled={saving} variant="contained" onClick={() => setSelectedId(null)} sx={{ minHeight: 48 }}>Close details</Button></DialogActions>
     </Dialog>
+    <DiningSessionActionDialog action={action} reason={reason} saving={saving} onReason={setReason}
+      onClose={() => setAction(null)} onConfirm={endSession} />
   </>;
 }
-
