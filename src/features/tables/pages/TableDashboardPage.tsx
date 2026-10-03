@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Box, Checkbox, Button, Card, CardActionArea, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
-import { amber, green } from '@mui/material/colors';
+import { amber, lightBlue } from '@mui/material/colors';
 import { PageHeader } from '../../../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/ContentState';
 import { getApiErrorMessage } from '../../../services/apiClient';
@@ -173,8 +173,7 @@ export function TableDashboardPage() {
             {grouped.length === 0 ? <Typography color="text.secondary">No tables in this area.</Typography> :
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)', xl: 'repeat(4, 1fr)' }, gap: 2 }}>
                 {grouped.map(table => <Card key={table.id} sx={{
-                  backgroundColor: table.isActive && table.currentStatus === 0 ? green[50]
-                    : table.isActive && table.currentStatus === 1 ? amber[50] : undefined,
+                  backgroundColor: table.isActive && table.currentStatus === 0 ? lightBlue[50]                    : table.isActive && table.currentStatus === 1 ? amber[50] : undefined,
                 }}>
                   <CardActionArea disabled={!table.isActive} onClick={() => { if (table.isActive) setSelectedId(table.id); }} aria-label={`Table ${table.tableNumber}${!table.isActive ? ', inactive' : ''}`} sx={{ height: '100%', minHeight: 170, opacity: table.isActive ? 1 : 0.6 }}>
                     <CardContent><Typography variant="h5" sx={{ overflowWrap: 'anywhere' }}>Table {table.tableNumber}</Typography>{table.name && <Typography color="text.secondary">{table.name}</Typography>}
