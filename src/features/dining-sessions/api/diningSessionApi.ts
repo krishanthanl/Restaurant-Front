@@ -11,6 +11,9 @@ export const diningSessionApi = {
   async open(tableId: string, guestCount: number, waiterId: string, notes: string, tableRowVersion: string) {
     return (await apiClient.post<DiningSession>('/dining-sessions', { tableId, guestCount, waiterId: waiterId || null, notes: notes || null, tableRowVersion })).data;
   },
+  async openCombined(areaId: string, tableIds: string[], guestCount: number) {
+    return (await apiClient.post<DiningSession>('/dining-sessions', { areaId, tableIds, guestCount })).data;
+  },
   async update(session: DiningSession, input: SessionInput) {
     return (await apiClient.put<DiningSession>(`/dining-sessions/${session.id}`, { ...input, rowVersion: session.rowVersion })).data;
   },

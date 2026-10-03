@@ -13,6 +13,10 @@ export function DiningSessionDetailsDialog({ session, capacity, waiters, saving,
   const [notes, setNotes] = useState(session.notes ?? '');
   return <Stack spacing={2}>
     <DiningSessionStatusChip status={session.status} />
+    <Typography>Area: {session.areaName ?? 'Unknown'}</Typography>
+    <Typography>Assigned tables: {session.tables?.map(t => `${t.tableNumber} (${t.capacity})`).join(', ') ?? session.tableIds.join(', ')}</Typography>
+    <Typography>Combined capacity: {session.combinedCapacity ?? capacity}</Typography>
+    {session.closedAt && <Typography>Closed: {new Date(session.closedAt).toLocaleString()}</Typography>}
     <Typography>Guests: {session.guestCount}</Typography>
     <Typography>Waiter: {session.waiterName ?? 'Unassigned'}</Typography>
     <Typography>Opened: {new Date(session.openedAt).toLocaleString()}</Typography>

@@ -8,7 +8,7 @@ import { areaApi } from '../../areas/api/areaApi';
 import { useAuth } from '../../authentication/useAuth';
 import type { RestaurantTable } from '../types/tableTypes';
 
-vi.mock('../../dining-sessions/api/diningSessionApi', () => ({ diningSessionApi: { waiters: vi.fn(), active: vi.fn(), open: vi.fn(), close: vi.fn(), update: vi.fn(), cancel: vi.fn() } }));
+vi.mock('../../dining-sessions/api/diningSessionApi', () => ({ diningSessionApi: { list: vi.fn(), openCombined: vi.fn(), waiters: vi.fn(), active: vi.fn(), open: vi.fn(), close: vi.fn(), update: vi.fn(), cancel: vi.fn() } }));
 vi.mock('../api/tableApi', () => ({ tableApi: { getTables: vi.fn() } }));
 vi.mock('../../areas/api/areaApi', () => ({ areaApi: { getAreas: vi.fn() } }));
 vi.mock('../../authentication/useAuth', () => ({ useAuth: vi.fn() }));
@@ -16,6 +16,7 @@ const base: RestaurantTable = { id: 't0', restaurantId: 'r1', areaId: 'hall', ta
 const tables = Array.from({ length: 6 }, (_, index) => ({ ...base, id: `t${index}`, tableNumber: String(index + 1), areaId: index === 1 ? 'patio' : 'hall', currentStatus: index }));
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(diningSessionApi.list).mockResolvedValue([]);
   vi.mocked(diningSessionApi.waiters).mockResolvedValue([]);
   vi.mocked(useAuth).mockReturnValue({ user: { role: 'Manager' } } as ReturnType<typeof useAuth>);
   vi.mocked(tableApi.getTables).mockResolvedValue([...tables, { ...base, id: 'inactive', tableNumber: '7', isActive: false }]);
@@ -176,4 +177,27 @@ it('does not offer cancellation to a waiter', async () => {
   await user.click(await screen.findByRole('button', { name: 'Table 1' }));
   await screen.findByText('Guests: 2');
   expect(screen.queryByRole('button', { name: 'Cancel dining session' })).not.toBeInTheDocument();
+});
+
+it('selects multiple tables, validates capacity and displays backend errors', async () => {
+  vi.mocked(tableApi.getTables).mockResolvedValue([base, { ...base, id: 't2', tableNumber: '2' }]);
+  vi.mocked(diningSessionApi.openCombined).mockRejectedValueOnce(new Error('Table already assigned'));
+  const user = userEvent.setup(); render(<TableDashboardPage />);
+  await screen.findByRole('button', { name: 'Table 1' });
+  await user.click(screen.getByRole('button', { name: 'Open dining session / combine tables' }));
+  const dialog = within(screen.getByRole('dialog'));
+  expect(dialog.getByRole('button', { name: 'Open dining session' })).toBeDisabled();
+  await user.click(dialog.getByRole('combobox', { name: 'Session area' }));
+  await user.click(screen.getByRole('option', { name: 'Hall' }));
+  fireEvent.change(dialog.getByLabelText('Guest count'), { target: { value: '7' } });
+  await user.click(dialog.getAllByRole('checkbox')[0]);
+  expect(dialog.getByText('Not enough table capacity for 7 guests.')).toBeInTheDocument();
+  await user.click(dialog.getAllByRole('checkbox')[1]);
+  expect(dialog.getByText('Combined capacity: 8')).toBeInTheDocument();
+  await user.click(dialog.getByRole('button', { name: 'Open dining session' }));
+  expect(await dialog.findByRole('alert')).toHaveTextContent('Table already assigned');
+  expect(diningSessionApi.openCombined).toHaveBeenCalledWith('hall', ['t0', 't2'], 7);
+  vi.mocked(diningSessionApi.openCombined).mockResolvedValueOnce({} as never);
+  await user.click(dialog.getByRole('button', { name: 'Open dining session' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 });

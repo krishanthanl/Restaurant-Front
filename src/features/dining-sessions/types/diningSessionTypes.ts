@@ -1,5 +1,6 @@
 export const DiningSessionStatus = { Active: 0, Closed: 1, Cancelled: 2 } as const;
 export interface DiningSession {
+  areaId?: string; areaName?: string; combinedCapacity?: number; tables?: { id: string; tableNumber: string; capacity: number }[];
   id: string; restaurantId: string; guestCount: number; openedBy: string;
   waiterId: string | null; waiterName: string | null; openedAt: string;
   status: number; closedAt: string | null; tableIds: string[];

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box, Button, Card, CardActionArea, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Box, Checkbox, Button, Card, CardActionArea, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import { PageHeader } from '../../../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/ContentState';
@@ -19,6 +19,11 @@ export function TableDashboardPage() {
   const { user } = useAuth();
   const canManage = user?.role === 'Admin' || user?.role === 'Manager';
   const canOpen = canManage || user?.role === 'Waiter';
+  const [combineOpen, setCombineOpen] = useState(false);
+  const [combineArea, setCombineArea] = useState('');
+  const [combineGuests, setCombineGuests] = useState('1');
+  const [combineIds, setCombineIds] = useState<string[]>([]);
+  const [activeSessions, setActiveSessions] = useState<DiningSession[]>([]);
   const [notes, setNotes] = useState('');
   const [action, setAction] = useState<'close' | 'cancel' | null>(null);
   const [reason, setReason] = useState('');
@@ -37,6 +42,7 @@ export function TableDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const combinedCapacity = tables.filter(t => combineIds.includes(t.id)).reduce((sum, t) => sum + t.capacity, 0);
   const refresh = () => { setSelectedId(null); setRevision(value => value + 1); };
 
   useEffect(() => {
@@ -47,8 +53,10 @@ export function TableDashboardPage() {
     Promise.all([
       areaApi.getAreas('all', controller.signal),
       tableApi.getTables(canManage ? 'all' : 'active', undefined, controller.signal),
-    ]).then(([loadedAreas, loadedTables]) => {
+      canOpen ? diningSessionApi.list(undefined, undefined, controller.signal) : Promise.resolve([]),
+    ]).then(([loadedAreas, loadedTables, sessions]) => {
       if (controller.signal.aborted) return;
+      setActiveSessions(sessions);
       setAreas(loadedAreas.sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name)));
       setTables(loadedTables.sort((a, b) => a.displayOrder - b.displayOrder || a.tableNumber.localeCompare(b.tableNumber, undefined, { numeric: true })));
     }).catch((loadError: unknown) => {
@@ -57,7 +65,7 @@ export function TableDashboardPage() {
       if (!controller.signal.aborted) setLoading(false);
     });
     return () => controller.abort();
-  }, [revision, canManage]);
+  }, [revision, canManage, canOpen]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -77,6 +85,12 @@ export function TableDashboardPage() {
     if (!selectedId) return;
     setSaving(true); setSessionError(null);
     try { await diningSessionApi.open(selectedId, Number(guests), waiterId, notes, tables.find(t => t.id === selectedId)!.rowVersion); refresh(); }
+    catch (e: unknown) { setSessionError(getApiErrorMessage(e)); }
+    finally { setSaving(false); }
+  };
+  const openCombined = async () => {
+    setSaving(true); setSessionError(null);
+    try { await diningSessionApi.openCombined(combineArea, combineIds, Number(combineGuests)); setCombineOpen(false); refresh(); }
     catch (e: unknown) { setSessionError(getApiErrorMessage(e)); }
     finally { setSaving(false); }
   };
@@ -108,6 +122,32 @@ export function TableDashboardPage() {
   return <>
     <PageHeader eyebrow="Restaurant floor" title="Table dashboard" description="Choose an area, check availability, and tap a table for details."
       action={<Button variant="contained" startIcon={<RefreshRoundedIcon />} onClick={refresh} disabled={loading} sx={{ minHeight: 48 }}>Refresh tables</Button>} />
+    {canOpen && <Button sx={{ mb: 2 }} variant="contained" disabled={loading || Boolean(error)} onClick={() => {
+      setCombineArea(''); setCombineGuests('1'); setCombineIds([]); setSessionError(null); setCombineOpen(true);
+    }}>Open dining session / combine tables</Button>}
+    <Dialog open={combineOpen} onClose={() => { if (!saving) setCombineOpen(false); }} fullWidth maxWidth="sm">
+      <DialogTitle>Open dining session</DialogTitle>
+      <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+        <TextField select label="Session area" value={combineArea} disabled={saving} onChange={e => { setCombineArea(e.target.value); setCombineIds([]); }}>
+          {areas.filter(a => a.isActive).map(a => <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>)}
+        </TextField>
+        {!combineArea && <Typography role="status">Select an area.</Typography>}
+        <TextField label="Guest count" type="number" value={combineGuests} disabled={saving} onChange={e => setCombineGuests(e.target.value)} slotProps={{ htmlInput: { min: 1, step: 1 } }} />
+        {tables.filter(t => t.areaId === combineArea && t.isActive && t.currentStatus === 0).map(t => <Box component="label" key={t.id}>
+          <Checkbox checked={combineIds.includes(t.id)} disabled={saving} onChange={e => setCombineIds(ids => e.target.checked ? [...ids, t.id] : ids.filter(id => id !== t.id))} />
+          {t.tableNumber} — Capacity: {t.capacity}
+        </Box>)}
+        <Typography>Selected tables: {tables.filter(t => combineIds.includes(t.id)).map(t => t.tableNumber).join(', ') || 'None'}</Typography>
+        <Typography>Combined capacity: {combinedCapacity}</Typography>
+        {!Number.isInteger(Number(combineGuests)) || Number(combineGuests) <= 0 ? <Typography role="status">Enter a positive whole guest count.</Typography> :
+          combineIds.length === 0 ? <Typography role="status">Select at least one available table.</Typography> :
+          Number(combineGuests) > combinedCapacity ? <Typography role="status" color="error">Not enough table capacity for {combineGuests} guests.</Typography> : <Typography>Selected tables can accommodate the guests.</Typography>}
+        {sessionError && <Typography role="alert" color="error">{sessionError}</Typography>}
+      </Stack></DialogContent>
+      <DialogActions><Button disabled={saving} onClick={() => setCombineOpen(false)}>Cancel</Button>
+        <Button variant="contained" onClick={openCombined} disabled={saving || !combineArea || !combineIds.length || !Number.isInteger(Number(combineGuests)) || Number(combineGuests) <= 0 || Number(combineGuests) > combinedCapacity}>Open dining session</Button>
+      </DialogActions>
+    </Dialog>
     {loading ? <LoadingState label="Loading table dashboardâ€¦" /> : error ? <ErrorState message={error} onRetry={refresh} /> : <>
       <Box component="section" aria-label="Table summary" sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', xl: 'repeat(6, 1fr)' }, gap: 2, mb: 2 }}>
         {summaries.map(item => <Card key={item.label}><CardContent><Typography color="text.secondary">{item.label}</Typography><Typography variant="h4">{item.count}</Typography></CardContent></Card>)}
@@ -134,6 +174,7 @@ export function TableDashboardPage() {
                 {grouped.map(table => <Card key={table.id}>
                   <CardActionArea disabled={!table.isActive} onClick={() => { if (table.isActive) setSelectedId(table.id); }} aria-label={`Table ${table.tableNumber}${!table.isActive ? ', inactive' : ''}`} sx={{ height: '100%', minHeight: 170, opacity: table.isActive ? 1 : 0.6 }}>
                     <CardContent><Typography variant="h5" sx={{ overflowWrap: 'anywhere' }}>Table {table.tableNumber}</Typography>{table.name && <Typography color="text.secondary">{table.name}</Typography>}
+                      {activeSessions.filter(s => s.tableIds.includes(table.id)).map(s => <Typography key={s.id} variant="body2">Session {s.id.slice(0, 8)} · {s.guestCount} guests · {tables.filter(t => s.tableIds.includes(t.id)).map(t => t.tableNumber).join(' + ')}</Typography>)}
                       <Typography sx={{ my: 1.5 }}>Capacity: {table.capacity} guests</Typography>
                       <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap"><Chip label={tableStatuses[table.currentStatus]?.label ?? 'Unknown'} color={tableStatuses[table.currentStatus]?.color ?? 'default'} /><Chip label={table.isActive ? 'Active' : 'Inactive'} variant="outlined" /></Stack>
                     </CardContent>
@@ -157,7 +198,7 @@ export function TableDashboardPage() {
         {canOpen && selected.currentStatus === 0 && areas.find(a => a.id === selected.areaId)?.isActive &&
           <OpenDiningSessionDialog guests={guests} waiterId={waiterId} notes={notes} capacity={selected.capacity} waiters={waiters}
             disabled={saving || sessionLoading || Boolean(sessionError)} onGuests={setGuests} onWaiter={setWaiterId} onNotes={setNotes} onOpen={openSession} />}
-        {session && <DiningSessionDetailsDialog key={session.rowVersion} session={session} capacity={selected.capacity} waiters={waiters}
+        {session && <DiningSessionDetailsDialog key={session.rowVersion} session={session} capacity={session.combinedCapacity ?? selected.capacity} waiters={waiters}
           saving={saving} canCancel={canManage} onSave={saveSession} onAction={value => { setReason(''); setAction(value); }} />}
         {sessionError && <Button disabled={saving} onClick={refresh}>Refresh session and tables</Button>}
       </Stack>}</DialogContent>
