@@ -8,14 +8,15 @@ import { LoginPage } from './LoginPage';
 import { ProtectedRoute } from './ProtectedRoute';
 import { useAuth } from './useAuth';
 import { tokenStore } from './tokenStore';
-import { apiClient } from '../../services/apiClient';
+import type { AuthUser } from './authTypes';
+import { apiClient, logoutSession, refreshSession } from '../../services/apiClient';
 
-vi.mock('../../services/apiClient', () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
-const user = { id: 'staff-1', username: 'admin', fullName: 'Test Administrator', role: 'Admin' };
+vi.mock('../../services/apiClient', () => ({ apiClient: { get: vi.fn(), post: vi.fn() }, refreshSession: vi.fn(), logoutSession: vi.fn() }));
+const user: AuthUser = { id: 'staff-1', username: 'admin', fullName: 'Test Administrator', role: 'Admin', permissions: ['users.manage', 'menu.manage'] };
 const token = () => `header.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 }))}.signature`;
 function Workspace() {
   const auth = useAuth();
-  return <><h1>Workspace for {auth.user?.fullName}</h1><button onClick={auth.logout}>Log out</button></>;
+  return <><h1>Workspace for {auth.user?.fullName}</h1><span>{auth.hasPermission('menu.manage') ? 'Can manage menu' : 'Read only'}</span><button onClick={auth.logout}>Log out</button></>;
 }
 function renderApp(path = '/private') {
   return render(<MemoryRouter initialEntries={[path]}><AuthProvider><Routes>
@@ -38,7 +39,7 @@ describe('Authentication', () => {
 
   it('logs in, stores one tab-scoped token, then logs out and protects the route again', async () => {
     const accessToken = token();
-    vi.mocked(apiClient.post).mockResolvedValue({ data: { accessToken, user } });
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { accessToken, csrfToken: 'csrf-token', expiresAtUtc: new Date(Date.now() + 3600000).toISOString(), user } });
     renderApp();
     await userEvent.type(await screen.findByLabelText(/Username or email/), 'admin');
     await userEvent.type(screen.getByLabelText(/Password/), 'test-password');
@@ -46,10 +47,13 @@ describe('Authentication', () => {
     expect(await screen.findByRole('heading', { name: 'Workspace for Test Administrator' })).toBeInTheDocument();
     expect(apiClient.post).toHaveBeenCalledWith('/auth/login', { username: 'admin', password: 'test-password' });
     expect(tokenStore.get()).toBe(accessToken);
+    expect(tokenStore.getCsrf()).toBe('csrf-token');
+    expect(screen.getByText('Can manage menu')).toBeInTheDocument();
     expect(localStorage.getItem('access_token')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Log out' }));
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     expect(tokenStore.get()).toBeNull();
+    expect(logoutSession).toHaveBeenCalled();
   });
 
   it('displays a safe message after invalid credentials', async () => {
@@ -76,12 +80,16 @@ describe('Authentication', () => {
     expect(tokenStore.get()).toBeNull();
   });
 
-  it('rejects an expired stored token without making an API call', async () => {
-    tokenStore.set(`header.${btoa(JSON.stringify({ exp: 1 }))}.signature`);
+  it('refreshes an expired stored access token when a refresh session exists', async () => {
+    tokenStore.setSession(`header.${btoa(JSON.stringify({ exp: 1 }))}.signature`, 'csrf-token');
+    vi.mocked(refreshSession).mockImplementation(async () => {
+      const accessToken = token();
+      tokenStore.setSession(accessToken, 'csrf-token');
+      return { accessToken, csrfToken: 'csrf-token', expiresAtUtc: new Date(Date.now() + 3600000).toISOString(), user };
+    });
     renderApp();
-    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
-    expect(apiClient.get).not.toHaveBeenCalled();
-    expect(tokenStore.get()).toBeNull();
+    expect(await screen.findByRole('heading', { name: /Workspace for/ })).toBeInTheDocument();
+    expect(refreshSession).toHaveBeenCalledOnce();
   });
 
   it('clears the session when restoration fails', async () => {

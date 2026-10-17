@@ -1,6 +1,6 @@
 import { useAuth } from '../features/authentication/useAuth';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppBar, Avatar, Box, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon,
@@ -14,18 +14,21 @@ import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneR
 import RoomOutlinedIcon from '@mui/icons-material/RoomOutlined';
 
 import TableRestaurantOutlinedIcon from '@mui/icons-material/TableRestaurantOutlined';
+import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
+import { Permissions } from '../features/authentication/permissions';
 
 const drawerWidth = 252;
-const navigation = [
+const navigation: Array<{ label: string; path: string; icon: ReactNode; permission?: string }> = [
   { label: 'Table dashboard', path: '/restaurant/table-dashboard', icon: <TableRestaurantOutlinedIcon /> },
   { label: 'Tables', path: '/restaurant/tables', icon: <TableRestaurantOutlinedIcon /> },
   { label: 'Areas', path: '/restaurant/areas', icon: <RoomOutlinedIcon /> },
   { label: 'Menu items', path: '/menu/items', icon: <RestaurantMenuRoundedIcon /> },
   { label: 'Categories', path: '/menu/categories', icon: <CategoryOutlinedIcon /> },
+  { label: 'Access control', path: '/administration/access-control', icon: <AdminPanelSettingsOutlinedIcon />, permission: Permissions.usersManage },
 ];
 
 export function AppLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -45,7 +48,7 @@ export function AppLayout() {
       </Box>
       <Typography variant="overline" color="text.secondary" sx={{ px: 1.5, mb: 1 }}>Management</Typography>
       <List sx={{ p: 0 }}>
-        {navigation.map((item) => {
+        {navigation.filter((item) => !item.permission || hasPermission(item.permission)).map((item) => {
           const selected = location.pathname.startsWith(item.path);
           return (
             <ListItemButton key={item.path} selected={selected} onClick={() => { navigate(item.path); setMobileOpen(false); }}

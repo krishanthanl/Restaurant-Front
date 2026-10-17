@@ -4,8 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AreaManagementPage } from './AreaManagementPage';
 import { areaApi } from '../api/areaApi';
 import type { Area } from '../types/areaTypes';
+import { useAuth } from '../../authentication/useAuth';
 
 vi.mock('../api/areaApi', () => ({ areaApi: { getAreas: vi.fn(), createArea: vi.fn(), updateArea: vi.fn(), setAreaStatus: vi.fn() } }));
+vi.mock('../../authentication/useAuth', () => ({ useAuth: vi.fn() }));
 
 const hall: Area = {
   id: 'area-1', restaurantId: 'restaurant-1', name: 'Main Hall', description: 'Ground floor', displayOrder: 2,
@@ -15,6 +17,7 @@ const outdoor: Area = { ...hall, id: 'area-2', name: 'Outdoor', description: nul
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(useAuth).mockReturnValue({ hasPermission: () => true } as unknown as ReturnType<typeof useAuth>);
   vi.mocked(areaApi.getAreas).mockImplementation(async (filter) => filter === 'active' ? [hall] : filter === 'inactive' ? [outdoor] : [hall, outdoor]);
   vi.mocked(areaApi.createArea).mockResolvedValue(hall);
   vi.mocked(areaApi.updateArea).mockResolvedValue(hall);

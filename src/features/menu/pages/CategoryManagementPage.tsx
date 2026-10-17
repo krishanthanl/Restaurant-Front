@@ -15,8 +15,12 @@ import { getApiErrorMessage } from '../../../services/apiClient';
 import { menuApi } from '../api/menuApi';
 import type { CategoryInput, MenuCategory } from '../types/menuTypes';
 import { CategoryFormDialog } from '../components/CategoryFormDialog';
+import { useAuth } from '../../authentication/useAuth';
+import { Permissions } from '../../authentication/permissions';
 
 export function CategoryManagementPage() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(Permissions.menuManage);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,14 +67,14 @@ export function CategoryManagementPage() {
   return (
     <>
       <PageHeader eyebrow="Menu setup" title="Categories" description="Organize dishes into clear, guest-friendly groups."
-        action={<Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => { setEditing(null); setFormOpen(true); }}>New category</Button>} />
+        action={canManage ? <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => { setEditing(null); setFormOpen(true); }}>New category</Button> : undefined} />
       <Card>
         <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
           <TextField fullWidth placeholder="Search categories" value={search} onChange={(event) => setSearch(event.target.value)}
             InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon color="action" /></InputAdornment> }} sx={{ mb: 3, maxWidth: 480 }} />
           {loading ? <LoadingState label="Loading categories…" /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : filtered.length === 0 ?
             <EmptyState title={search ? 'No matching categories' : 'No categories yet'} description={search ? 'Try a different search.' : 'Create the first category to start building the menu.'}
-              action={!search ? <Button variant="contained" onClick={() => setFormOpen(true)}>Create category</Button> : undefined} /> :
+              action={!search && canManage ? <Button variant="contained" onClick={() => setFormOpen(true)}>Create category</Button> : undefined} /> :
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
               {filtered.map((category) => (
                 <Card key={category.id} variant="outlined" sx={{ boxShadow: 'none', opacity: category.isActive ? 1 : .68 }}>
@@ -81,12 +85,12 @@ export function CategoryManagementPage() {
                         <Typography variant="h6" noWrap>{category.name}</Typography>
                         <Stack direction="row" alignItems="center" spacing={.75} mt={.5}><DragIndicatorRoundedIcon fontSize="small" color="disabled" /><Typography variant="caption" color="text.secondary">Order {category.displayOrder}</Typography></Stack>
                       </Box>
-                      <Tooltip title="Edit category"><IconButton size="small" onClick={() => { setEditing(category); setFormOpen(true); }}><EditOutlinedIcon fontSize="small" /></IconButton></Tooltip>
+                      {canManage && <Tooltip title="Edit category"><IconButton size="small" onClick={() => { setEditing(category); setFormOpen(true); }}><EditOutlinedIcon fontSize="small" /></IconButton></Tooltip>}
                     </Stack>
                     <Typography variant="body2" color="text.secondary" sx={{ my: 2, minHeight: 40 }}>{category.description || 'No description provided.'}</Typography>
                     <Stack direction="row" justifyContent="space-between" alignItems="center">
                       <Chip size="small" label={`${category.itemCount} item${category.itemCount === 1 ? '' : 's'}`} />
-                      <Stack direction="row" alignItems="center"><Typography variant="caption" color="text.secondary">{category.isActive ? 'Active' : 'Inactive'}</Typography><Switch size="small" checked={category.isActive} onChange={() => setStatusTarget(category)} inputProps={{ 'aria-label': `Toggle ${category.name}` }} /></Stack>
+                      <Stack direction="row" alignItems="center"><Typography variant="caption" color="text.secondary">{category.isActive ? 'Active' : 'Inactive'}</Typography>{canManage && <Switch size="small" checked={category.isActive} onChange={() => setStatusTarget(category)} inputProps={{ 'aria-label': `Toggle ${category.name}` }} />}</Stack>
                     </Stack>
                   </CardContent>
                 </Card>

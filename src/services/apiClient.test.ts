@@ -1,6 +1,7 @@
 import { AxiosError } from 'axios';
-import { describe, expect, it } from 'vitest';
-import { getApiErrorMessage } from './apiClient';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { apiClient, getApiErrorMessage, refreshSession } from './apiClient';
+import { tokenStore } from '../features/authentication/tokenStore';
 
 function apiError(status: number, data: unknown) {
   const error = new AxiosError('Request failed');
@@ -9,6 +10,28 @@ function apiError(status: number, data: unknown) {
 }
 
 describe('getApiErrorMessage', () => {
+  beforeEach(() => { sessionStorage.clear(); vi.restoreAllMocks(); });
+
+  it('shares one refresh request across concurrent callers', async () => {
+    tokenStore.setSession('expired', 'csrf-token');
+    const response = { data: { accessToken: 'new-access', csrfToken: 'new-csrf', expiresAtUtc: '2026-10-18T00:00:00Z',
+      user: { id: '1', username: 'admin', fullName: 'Admin', role: 'Admin', permissions: ['users.manage'] } } };
+    const post = vi.spyOn(apiClient, 'post').mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return response;
+    });
+
+    const [first, second] = await Promise.all([refreshSession(), refreshSession()]);
+
+    expect(first.accessToken).toBe('new-access');
+    expect(second.accessToken).toBe('new-access');
+    expect(post).toHaveBeenCalledOnce();
+  });
+
+  it('describes forbidden operations without treating them as a lost session', () => {
+    expect(getApiErrorMessage(apiError(403, { title: 'Access denied' })))
+      .toBe('You do not have permission to perform this operation.');
+  });
   it('displays server exception details with the error reference', () => {
     expect(getApiErrorMessage(apiError(500, { detail: 'Operation failed.', traceId: 'request-123' })))
       .toBe('Operation failed. (Reference: request-123)');

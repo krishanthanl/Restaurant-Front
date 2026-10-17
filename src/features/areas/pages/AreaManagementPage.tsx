@@ -11,8 +11,12 @@ import { getApiErrorMessage } from '../../../services/apiClient';
 import { areaApi } from '../api/areaApi';
 import { AreaFormDialog } from '../components/AreaFormDialog';
 import type { Area, AreaFilter, AreaInput } from '../types/areaTypes';
+import { useAuth } from '../../authentication/useAuth';
+import { Permissions } from '../../authentication/permissions';
 
 export function AreaManagementPage() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(Permissions.tablesManage);
   const [areas, setAreas] = useState<Area[]>([]);
   const [filter, setFilter] = useState<AreaFilter>('all');
   const [loading, setLoading] = useState(true);
@@ -65,14 +69,14 @@ export function AreaManagementPage() {
   return (
     <>
       <PageHeader eyebrow="Restaurant setup" title="Areas" description="Manage the physical sections of your restaurant."
-        action={<Button variant="contained" startIcon={<AddRoundedIcon />} onClick={addArea} disabled={saving}>Add area</Button>} />
+        action={canManage ? <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={addArea} disabled={saving}>Add area</Button> : undefined} />
       <Card><CardContent sx={{ p: { xs: 2, sm: 3 } }}>
         <TextField select label="Status" value={filter} disabled={saving} onChange={(event) => setFilter(event.target.value as AreaFilter)} sx={{ mb: 3, minWidth: 180 }}>
           <MenuItem value="all">All</MenuItem><MenuItem value="active">Active</MenuItem><MenuItem value="inactive">Inactive</MenuItem>
         </TextField>
         {loading ? <LoadingState label="Loading areas…" /> : error ? <ErrorState message={error} onRetry={reload} /> : areas.length === 0 ?
           <EmptyState title={filter === 'all' ? 'No areas yet' : `No ${filter} areas`} description="Add areas such as Main Hall, Outdoor, or VIP."
-            action={<Button variant="contained" onClick={addArea}>Add area</Button>} /> :
+            action={canManage ? <Button variant="contained" onClick={addArea}>Add area</Button> : undefined} /> :
           <TableContainer><Table aria-label="Restaurant areas">
             <TableHead><TableRow><TableCell>Name</TableCell><TableCell>Description</TableCell><TableCell>Display order</TableCell><TableCell>Status</TableCell><TableCell align="right">Actions</TableCell></TableRow></TableHead>
             <TableBody>{areas.map((area) => <TableRow key={area.id}>
@@ -80,11 +84,11 @@ export function AreaManagementPage() {
               <TableCell sx={{ maxWidth: 380, overflowWrap: 'anywhere' }}>{area.description || '—'}</TableCell>
               <TableCell>{area.displayOrder}</TableCell>
               <TableCell><Chip size="small" label={area.isActive ? 'Active' : 'Inactive'} color={area.isActive ? 'success' : 'default'} /></TableCell>
-              <TableCell align="right"><Stack direction="row" spacing={1} justifyContent="flex-end">
+              <TableCell align="right">{canManage && <Stack direction="row" spacing={1} justifyContent="flex-end">
                 <Button disabled={saving} aria-label={`Edit ${area.name}`} onClick={() => { setEditing(area); setFormOpen(true); }}>Edit</Button>
                 <Button disabled={saving} color={area.isActive ? 'warning' : 'primary'} aria-label={`${area.isActive ? 'Deactivate' : 'Activate'} ${area.name}`}
                   onClick={() => setStatusTarget(area)}>{area.isActive ? 'Deactivate' : 'Activate'}</Button>
-              </Stack></TableCell>
+              </Stack>}</TableCell>
             </TableRow>)}</TableBody>
           </Table></TableContainer>}
       </CardContent></Card>

@@ -9,6 +9,10 @@ import { AreaManagementPage } from './features/areas/pages/AreaManagementPage';
 
 import { TableManagementPage } from './features/tables/pages/TableManagementPage';
 import { TableDashboardPage } from './features/tables/pages/TableDashboardPage';
+import { PermissionRoute } from './features/authentication/PermissionRoute';
+import { ForbiddenPage } from './features/authentication/ForbiddenPage';
+import { Permissions } from './features/authentication/permissions';
+import { AccessControlPage } from './features/access-control/AccessControlPage';
 
 export default function App() {
   return (
@@ -22,8 +26,14 @@ export default function App() {
           <Route index element={<Navigate to="/menu/items" replace />} />
           <Route path="menu/categories" element={<CategoryManagementPage />} />
           <Route path="menu/items" element={<MenuItemsPage />} />
-          <Route path="menu/items/new" element={<MenuItemFormPage />} />
-          <Route path="menu/items/:id/edit" element={<MenuItemFormPage />} />
+          <Route path="forbidden" element={<ForbiddenPage />} />
+          <Route element={<PermissionRoute permission={Permissions.menuManage} />}>
+            <Route path="menu/items/new" element={<MenuItemFormPage />} />
+            <Route path="menu/items/:id/edit" element={<MenuItemFormPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission={Permissions.usersManage} />}>
+            <Route path="administration/access-control" element={<AccessControlPage />} />
+          </Route>
           <Route path="*" element={<Navigate to="/menu/items" replace />} />
         </Route>
       </Route>

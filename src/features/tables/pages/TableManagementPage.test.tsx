@@ -12,7 +12,7 @@ vi.mock('../../authentication/useAuth', () => ({ useAuth: vi.fn() }));
 const table: RestaurantTable = { id: 't1', restaurantId: 'r1', areaId: 'a1', tableNumber: 'T1', name: null, capacity: 4, tableType: 1, displayOrder: 0, isActive: true, createdAtUtc: '', updatedAtUtc: null, rowVersion: 'v1', currentStatus: 0 };
 beforeEach(() => {
  vi.resetAllMocks();
- vi.mocked(useAuth).mockReturnValue({ user: { role: 'Manager' } } as ReturnType<typeof useAuth>);
+ vi.mocked(useAuth).mockReturnValue({ user: { role: 'Manager' }, hasPermission: () => true } as unknown as ReturnType<typeof useAuth>);
  vi.mocked(tableApi.getTables).mockResolvedValue([table]);
  vi.mocked(areaApi.getAreas).mockResolvedValue([{ id: 'a1', restaurantId: 'r1', name: 'Hall', description: null, displayOrder: 0, isActive: true, createdAtUtc: '', updatedAtUtc: null, rowVersion: 'v1' }]);
  vi.mocked(tableApi.createTable).mockResolvedValue(table); vi.mocked(tableApi.updateTable).mockResolvedValue(table); vi.mocked(tableApi.setTableStatus).mockResolvedValue(table);
@@ -59,7 +59,7 @@ it('edits and confirms deactivation', async () => {
  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' })); await waitFor(() => expect(tableApi.setTableStatus).toHaveBeenCalledWith(table, false));
 });
 it('hides mutation controls for waiters', async () => {
- vi.mocked(useAuth).mockReturnValue({ user: { role: 'Waiter' } } as ReturnType<typeof useAuth>);
+ vi.mocked(useAuth).mockReturnValue({ user: { role: 'Waiter' }, hasPermission: () => false } as unknown as ReturnType<typeof useAuth>);
  render(<TableManagementPage />); await screen.findByRole('table'); expect(screen.queryByRole('button', { name: 'Add table' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'Edit T1' })).not.toBeInTheDocument();
  expect(tableApi.getTables).toHaveBeenCalledWith('active', undefined, expect.any(AbortSignal));
  expect(screen.queryByRole('combobox', { name: 'Status' })).not.toBeInTheDocument();
@@ -102,7 +102,7 @@ it('displays operational status separately and changes cleaning condition', asyn
  await waitFor(() => expect(tableApi.setTableCondition).toHaveBeenCalledWith(table, 1));
 });
 it.each([1, 2, 3, 4, 5])('renders status %i for waiters without condition controls', async status => {
- vi.mocked(useAuth).mockReturnValue({ user: { role: 'Waiter' } } as ReturnType<typeof useAuth>);
+ vi.mocked(useAuth).mockReturnValue({ user: { role: 'Waiter' }, hasPermission: () => false } as unknown as ReturnType<typeof useAuth>);
  vi.mocked(tableApi.getTables).mockResolvedValue([{ ...table, currentStatus: status }]);
  render(<TableManagementPage />);
  const list = await screen.findByRole('table');

@@ -15,10 +15,11 @@ import { tableStatuses, tableTypes, type RestaurantTable, type TableFilter, type
 import { areaApi } from '../../areas/api/areaApi';
 import type { Area } from '../../areas/types/areaTypes';
 import { useAuth } from '../../authentication/useAuth';
+import { Permissions } from '../../authentication/permissions';
 
 export function TableManagementPage() {
-  const { user } = useAuth();
-  const canManage = user?.role === 'Admin' || user?.role === 'Manager';
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(Permissions.tablesManage);
   const [areas, setAreas] = useState<Area[]>([]);
   const [areaId, setAreaId] = useState('');
   const [tables, setTables] = useState<RestaurantTable[]>([]);

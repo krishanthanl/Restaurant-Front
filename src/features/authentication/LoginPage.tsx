@@ -13,6 +13,11 @@ export function LoginPage() {
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice] = useState(() => {
+    const value = window.sessionStorage.getItem('auth_notice');
+    window.sessionStorage.removeItem('auth_notice');
+    return value;
+  });
   const from = (location.state as { from?: string } | null)?.from;
   const destination = from?.startsWith('/') && !from.startsWith('//') && from.split('?')[0] !== '/login' ? from : '/menu/items';
   if (isLoading) return <Box sx={{ p: 6, textAlign: 'center' }}><CircularProgress aria-label="Restoring session" /></Box>;
@@ -42,6 +47,7 @@ export function LoginPage() {
           <Typography variant="h4" fontWeight={750}>Welcome back</Typography>
           <Typography color="text.secondary" sx={{ mt: 1 }}>Sign in to your Tasty Station workspace.</Typography>
         </Box>
+        {notice && <Alert severity="info">{notice}</Alert>}
         {error && <Alert severity="error">{error}</Alert>}
         <TextField label="Username or email" value={username} onChange={(event) => setUsername(event.target.value)}
           autoComplete="username" autoFocus required disabled={busy} inputProps={{ maxLength: 254 }}

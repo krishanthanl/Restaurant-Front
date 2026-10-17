@@ -3,9 +3,11 @@ export interface AuthUser {
   username: string;
   fullName: string;
   role: 'Admin' | 'Manager' | 'Cashier' | 'Waiter' | 'Kitchen';
+  permissions: string[];
 }
 export interface LoginResponse {
   accessToken: string;
   expiresAtUtc: string;
+  csrfToken: string;
   user: AuthUser;
 }

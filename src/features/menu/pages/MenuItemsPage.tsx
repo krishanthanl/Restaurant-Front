@@ -15,11 +15,15 @@ import { FeedbackSnackbar, type Feedback } from '../../../components/FeedbackSna
 import { getApiErrorMessage } from '../../../services/apiClient';
 import { menuApi } from '../api/menuApi';
 import { MenuStatusChip } from '../components/MenuStatusChip';
+import { useAuth } from '../../authentication/useAuth';
+import { Permissions } from '../../authentication/permissions';
 import type { MenuCategory, MenuItem } from '../types/menuTypes';
 
 const pageSize = 10;
 
 export function MenuItemsPage() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(Permissions.menuManage);
   const navigate = useNavigate();
   const location = useLocation();
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -81,7 +85,7 @@ export function MenuItemsPage() {
   return (
     <>
       <PageHeader eyebrow="Menu catalog" title="Menu items" description="Manage dishes, pricing, visibility, and daily availability."
-        action={<Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate('/menu/items/new')}>New menu item</Button>} />
+        action={canManage ? <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate('/menu/items/new')}>New menu item</Button> : undefined} />
       <Card>
         <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} mb={3}>
@@ -92,7 +96,7 @@ export function MenuItemsPage() {
           </Stack>
           {loading ? <LoadingState label="Loading menu items…" /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : items.length === 0 ?
             <EmptyState title={noFilters ? 'No menu items yet' : 'No matching menu items'} description={noFilters ? 'Add your first dish to begin building the menu.' : 'Adjust the search or filters and try again.'}
-              action={noFilters ? <Button variant="contained" onClick={() => navigate('/menu/items/new')}>Add menu item</Button> : undefined} /> :
+              action={noFilters && canManage ? <Button variant="contained" onClick={() => navigate('/menu/items/new')}>Add menu item</Button> : undefined} /> :
             <>
               <TableContainer sx={{ overflowX: 'auto' }}>
                 <Table aria-label="Menu items">
@@ -103,9 +107,9 @@ export function MenuItemsPage() {
                       <TableCell>{item.categoryName}</TableCell>
                       <TableCell align="right"><Typography fontWeight={750}>Rs. {item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography></TableCell>
                       <TableCell><MenuStatusChip isActive={item.isActive} isAvailable={item.isAvailable} isOrderable={item.isOrderable} /></TableCell>
-                      <TableCell align="center"><Switch size="small" checked={item.isActive} disabled={updatingId === item.id} onChange={() => void updateStatus(item, 'active')} inputProps={{ 'aria-label': `Toggle active status for ${item.name}` }} /></TableCell>
-                      <TableCell align="center"><Switch size="small" checked={item.isAvailable} disabled={updatingId === item.id} onChange={() => void updateStatus(item, 'available')} inputProps={{ 'aria-label': `Toggle availability for ${item.name}` }} /></TableCell>
-                      <TableCell align="right"><Tooltip title="Edit item"><IconButton onClick={() => navigate(`/menu/items/${item.id}/edit`)}><EditOutlinedIcon /></IconButton></Tooltip></TableCell>
+                      <TableCell align="center">{canManage ? <Switch size="small" checked={item.isActive} disabled={updatingId === item.id} onChange={() => void updateStatus(item, 'active')} inputProps={{ 'aria-label': `Toggle active status for ${item.name}` }} /> : '—'}</TableCell>
+                      <TableCell align="center">{canManage ? <Switch size="small" checked={item.isAvailable} disabled={updatingId === item.id} onChange={() => void updateStatus(item, 'available')} inputProps={{ 'aria-label': `Toggle availability for ${item.name}` }} /> : '—'}</TableCell>
+                      <TableCell align="right">{canManage && <Tooltip title="Edit item"><IconButton onClick={() => navigate(`/menu/items/${item.id}/edit`)}><EditOutlinedIcon /></IconButton></Tooltip>}</TableCell>
                     </TableRow>
                   ))}</TableBody>
                 </Table>

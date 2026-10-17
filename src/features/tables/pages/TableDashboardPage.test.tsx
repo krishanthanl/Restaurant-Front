@@ -18,7 +18,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(diningSessionApi.list).mockResolvedValue([]);
   vi.mocked(diningSessionApi.waiters).mockResolvedValue([]);
-  vi.mocked(useAuth).mockReturnValue({ user: { role: 'Manager' } } as ReturnType<typeof useAuth>);
+  vi.mocked(useAuth).mockReturnValue({ user: { role: 'Manager' }, hasPermission: () => true } as unknown as ReturnType<typeof useAuth>);
   vi.mocked(tableApi.getTables).mockResolvedValue([...tables, { ...base, id: 'inactive', tableNumber: '7', isActive: false }]);
   vi.mocked(areaApi.getAreas).mockResolvedValue(['hall', 'patio'].map((id, index) => ({ id, restaurantId: 'r1', name: id === 'hall' ? 'Hall' : 'Patio', description: null, displayOrder: index, isActive: true, createdAtUtc: '', updatedAtUtc: null, rowVersion: 'v1' })));
 });
@@ -58,7 +58,7 @@ it('combines area and operational filters while keeping area summary counts inde
 });
 
 it('refreshes information and uses the active-only API for waiters', async () => {
-  vi.mocked(useAuth).mockReturnValue({ user: { role: 'Waiter' } } as ReturnType<typeof useAuth>);
+  vi.mocked(useAuth).mockReturnValue({ user: { role: 'Waiter' }, hasPermission: (permission: string) => permission === 'orders.create' } as unknown as ReturnType<typeof useAuth>);
   vi.mocked(tableApi.getTables).mockResolvedValueOnce([base]).mockResolvedValueOnce([{ ...base, currentStatus: 4 }]);
   const user = userEvent.setup(); render(<TableDashboardPage />); await screen.findByRole('button', { name: 'Table 1' });
   expect(tableApi.getTables).toHaveBeenCalledWith('active', undefined, expect.any(AbortSignal));
@@ -170,7 +170,7 @@ it('does not offer opening a table in an inactive area', async () => {
   expect(screen.queryByRole('button', { name: 'Open Table' })).not.toBeInTheDocument();
 });
 it('does not offer cancellation to a waiter', async () => {
-  vi.mocked(useAuth).mockReturnValue({ user: { role: 'Waiter' } } as ReturnType<typeof useAuth>);
+  vi.mocked(useAuth).mockReturnValue({ user: { role: 'Waiter' }, hasPermission: (permission: string) => permission === 'orders.create' } as unknown as ReturnType<typeof useAuth>);
   vi.mocked(tableApi.getTables).mockResolvedValue([{ ...base, currentStatus: 1 }]);
   vi.mocked(diningSessionApi.active).mockResolvedValue({ id: 's1', restaurantId: 'r1', guestCount: 2, openedBy: 'u1', waiterId: null, waiterName: null, openedAt: '2026-10-02T10:00:00Z', status: 0, closedAt: null, tableIds: ['t0'], notes: null, createdAtUtc: '', updatedAtUtc: null, cancelledAt: null, closedBy: null, cancelledBy: null, cancellationReason: null, rowVersion: 'version1' });
   const user = userEvent.setup(); render(<TableDashboardPage />);

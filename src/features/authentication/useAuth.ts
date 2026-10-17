@@ -8,6 +8,7 @@ export interface AuthSession {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  hasPermission: (permission: string) => boolean;
 }
 export const AuthContext = createContext<AuthSession | undefined>(undefined);
 export function useAuth() {
