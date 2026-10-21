@@ -22,6 +22,7 @@ export function validateMenuItem(input: MenuItemInput): FieldErrors<MenuItemInpu
   else if (name.length > 150) errors.name = 'Use 150 characters or fewer.';
   if (input.description.trim().length > 1000) errors.description = 'Use 1,000 characters or fewer.';
   if (!input.categoryId) errors.categoryId = 'Choose a category.';
+  if (!input.kitchenId) errors.kitchenId = 'Choose a kitchen.';
   if (input.price.trim() === '' || !Number.isFinite(price) || price < 0) errors.price = 'Enter a valid non-negative price.';
   else if (!/^\d+(\.\d{1,2})?$/.test(input.price.trim())) errors.price = 'Price can have at most two decimal places.';
   if (input.imagePath.length > 2048) errors.imagePath = 'Use 2,048 characters or fewer.';

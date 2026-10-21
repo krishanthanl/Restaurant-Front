@@ -12,6 +12,7 @@ import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import RestaurantMenuRoundedIcon from '@mui/icons-material/RestaurantMenuRounded';
 import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneRounded';
 import RoomOutlinedIcon from '@mui/icons-material/RoomOutlined';
+import SoupKitchenOutlinedIcon from '@mui/icons-material/SoupKitchenOutlined';
 
 import TableRestaurantOutlinedIcon from '@mui/icons-material/TableRestaurantOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
@@ -24,6 +25,7 @@ const navigation: Array<{ label: string; path: string; icon: ReactNode; permissi
   { label: 'Areas', path: '/restaurant/areas', icon: <RoomOutlinedIcon /> },
   { label: 'Menu items', path: '/menu/items', icon: <RestaurantMenuRoundedIcon /> },
   { label: 'Categories', path: '/menu/categories', icon: <CategoryOutlinedIcon /> },
+  { label: 'Kitchens', path: '/menu/kitchens', icon: <SoupKitchenOutlinedIcon /> },
   { label: 'Access control', path: '/administration/access-control', icon: <AdminPanelSettingsOutlinedIcon />, permission: Permissions.usersManage },
 ];
 
@@ -48,7 +50,8 @@ export function AppLayout() {
       </Box>
       <Typography variant="overline" color="text.secondary" sx={{ px: 1.5, mb: 1 }}>Management</Typography>
       <List sx={{ p: 0 }}>
-        {navigation.filter((item) => !item.permission || hasPermission(item.permission)).map((item) => {
+        {[...navigation, ...(hasPermission(Permissions.ordersCreate) || hasPermission(Permissions.billingManage)
+          ? [{ label: 'Active orders', path: '/orders/active', icon: <RestaurantMenuRoundedIcon />, permission: undefined }] : [])].filter((item) => !item.permission || hasPermission(item.permission)).map((item) => {
           const selected = location.pathname.startsWith(item.path);
           return (
             <ListItemButton key={item.path} selected={selected} onClick={() => { navigate(item.path); setMobileOpen(false); }}

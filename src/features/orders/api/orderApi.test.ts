@@ -1,0 +1,19 @@
+import { beforeEach, expect, it, vi } from 'vitest';
+import { apiClient } from '../../../services/apiClient';
+import { orderApi } from './orderApi';
+
+vi.mock('../../../services/apiClient', () => ({ apiClient: { post: vi.fn(), put: vi.fn(), delete: vi.fn(), get: vi.fn() } }));
+beforeEach(() => vi.resetAllMocks());
+
+it('sends DELETE concurrency and operation identity in the request body', async () => {
+  vi.mocked(apiClient.delete).mockResolvedValue({ data: { id: 'order' } });
+  await orderApi.remove('order', 'line', 'version', 'operation');
+  expect(apiClient.delete).toHaveBeenCalledWith('/orders/order/items/line', { data: { rowVersion: 'version', operationId: 'operation' } });
+});
+
+it('uses the supplied operation identity unchanged when retrying', async () => {
+  vi.mocked(apiClient.post).mockResolvedValue({ data: { id: 'order' } });
+  await orderApi.add('order', 'menu', 2, 'No salt', 'version', 'same-operation');
+  await orderApi.add('order', 'menu', 2, 'No salt', 'version', 'same-operation');
+  expect(vi.mocked(apiClient.post).mock.calls[0]).toEqual(vi.mocked(apiClient.post).mock.calls[1]);
+});

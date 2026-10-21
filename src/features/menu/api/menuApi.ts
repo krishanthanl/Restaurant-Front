@@ -1,9 +1,9 @@
 import { apiClient } from '../../../services/apiClient';
-import type { CategoryInput, MenuCategory, MenuItem, MenuItemInput, MenuItemQuery, PagedResponse } from '../types/menuTypes';
+import type { CategoryInput, MenuCategory, MenuItem, MenuItemInput, MenuItemKitchenAssignment, MenuItemQuery, PagedResponse } from '../types/menuTypes';
 
 export const menuApi = {
-  async getCategories(includeInactive = true, search?: string) {
-    const { data } = await apiClient.get<MenuCategory[]>('/menu-categories', { params: { includeInactive, search: search || undefined } });
+  async getCategories(includeInactive = true, search?: string, signal?: AbortSignal) {
+    const { data } = await apiClient.get<MenuCategory[]>('/menu-categories', { params: { includeInactive, search: search || undefined }, ...(signal ? { signal } : {}) });
     return data;
   },
   async getCategory(id: string) {
@@ -22,8 +22,8 @@ export const menuApi = {
     const { data } = await apiClient.put<MenuCategory>(`/menu-categories/${category.id}/status`, { isActive, rowVersion: category.rowVersion });
     return data;
   },
-  async getItems(query: MenuItemQuery) {
-    const { data } = await apiClient.get<PagedResponse<MenuItem>>('/menu-items', { params: { ...query, search: query.search || undefined, categoryId: query.categoryId || undefined } });
+  async getItems(query: MenuItemQuery, signal?: AbortSignal) {
+    const { data } = await apiClient.get<PagedResponse<MenuItem>>('/menu-items', { params: { ...query, search: query.search || undefined, categoryId: query.categoryId || undefined, kitchenId: query.kitchenId || undefined }, ...(signal ? { signal } : {}) });
     return data;
   },
   async getItem(id: string) {
@@ -46,6 +46,14 @@ export const menuApi = {
   },
   async setItemAvailability(item: MenuItem, isAvailable: boolean) {
     const { data } = await apiClient.put<MenuItem>(`/menu-items/${item.id}/availability`, { isAvailable, rowVersion: item.rowVersion });
+    return data;
+  },
+  async getItemKitchen(id: string) {
+    const { data } = await apiClient.get<MenuItemKitchenAssignment>(`/menu-items/${id}/kitchen`);
+    return data;
+  },
+  async assignItemKitchen(item: MenuItem, kitchenId: string) {
+    const { data } = await apiClient.put<MenuItemKitchenAssignment>(`/menu-items/${item.id}/kitchen`, { kitchenId, rowVersion: item.rowVersion });
     return data;
   },
 };

@@ -19,6 +19,8 @@ export default defineConfig(({ mode }) => {
     test: {
       environment: 'jsdom',
       setupFiles: './src/test/setup.ts',
+      // userEvent-driven MUI page tests can exceed the 5s default when the suite runs in parallel.
+      testTimeout: 20_000,
     },
     build: {
       outDir: 'build',

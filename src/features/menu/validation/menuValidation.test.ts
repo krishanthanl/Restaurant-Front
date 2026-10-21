@@ -14,13 +14,20 @@ describe('menu validation', () => {
   });
 
   it('accepts a valid menu item', () => {
-    const errors = validateMenuItem({ name: 'Chicken Rice', description: '', price: '1250.50', categoryId: 'category-id', imagePath: '/images/chicken.webp', isAvailable: true });
+    const errors = validateMenuItem({ name: 'Chicken Rice', description: '', price: '1250.50', categoryId: 'category-id', kitchenId: 'kitchen-id', imagePath: '/images/chicken.webp', isAvailable: true });
     expect(errors).toEqual({});
   });
 
   it('rejects excessive decimal places and encoded traversal', () => {
-    const errors = validateMenuItem({ name: 'Tea', description: '', price: '2.999', categoryId: 'category-id', imagePath: '/images/%2e%2e/secret.webp', isAvailable: true });
+    const errors = validateMenuItem({ name: 'Tea', description: '', price: '2.999', categoryId: 'category-id', kitchenId: 'kitchen-id', imagePath: '/images/%2e%2e/secret.webp', isAvailable: true });
     expect(errors.price).toBeTruthy();
     expect(errors.imagePath).toBeTruthy();
+  });
+});
+
+describe('menu item kitchen validation', () => {
+  it('requires a kitchen', () => {
+    const errors = validateMenuItem({ name: 'Tea', description: '', price: '2.50', categoryId: 'category-id', kitchenId: '', imagePath: '', isAvailable: true });
+    expect(errors.kitchenId).toBe('Choose a kitchen.');
   });
 });

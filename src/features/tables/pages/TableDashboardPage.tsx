@@ -16,6 +16,7 @@ import { DiningSessionActionDialog } from '../../dining-sessions/components/Dini
 import type { SessionInput } from '../../dining-sessions/types/diningSessionTypes';
 import { tableApi } from '../api/tableApi';
 import { tableStatuses, tableTypes, type RestaurantTable } from '../types/tableTypes';
+import { SessionOrderButton } from '../../orders/components/SessionOrderButton';
 
 export function TableDashboardPage() {
   const { hasPermission } = useAuth();
@@ -203,6 +204,7 @@ export function TableDashboardPage() {
         {canOpen && selected.currentStatus === 0 && areas.find(a => a.id === selected.areaId)?.isActive &&
           <OpenDiningSessionDialog guests={guests} waiterId={waiterId} notes={notes} capacity={selected.capacity} waiters={waiters}
             disabled={saving || sessionLoading || Boolean(sessionError)} onGuests={setGuests} onWaiter={setWaiterId} onNotes={setNotes} onOpen={openSession} />}
+        {session && canOpen && <SessionOrderButton session={session} disabled={saving} />}
         {session && <DiningSessionDetailsDialog key={session.rowVersion} session={session} capacity={session.combinedCapacity ?? selected.capacity} waiters={waiters}
           saving={saving} canCancel={canManage} onSave={saveSession} onAction={value => { setReason(''); setAction(value); }} />}
         {sessionError && <Button disabled={saving} onClick={refresh}>Refresh session and tables</Button>}

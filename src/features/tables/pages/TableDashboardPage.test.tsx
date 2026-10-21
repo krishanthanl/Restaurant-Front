@@ -6,16 +6,19 @@ import { diningSessionApi } from '../../dining-sessions/api/diningSessionApi';
 import { tableApi } from '../api/tableApi';
 import { areaApi } from '../../areas/api/areaApi';
 import { useAuth } from '../../authentication/useAuth';
+import { orderApi } from '../../orders/api/orderApi';
 import type { RestaurantTable } from '../types/tableTypes';
 
 vi.mock('../../dining-sessions/api/diningSessionApi', () => ({ diningSessionApi: { list: vi.fn(), openCombined: vi.fn(), waiters: vi.fn(), active: vi.fn(), open: vi.fn(), close: vi.fn(), update: vi.fn(), cancel: vi.fn() } }));
 vi.mock('../api/tableApi', () => ({ tableApi: { getTables: vi.fn() } }));
 vi.mock('../../areas/api/areaApi', () => ({ areaApi: { getAreas: vi.fn() } }));
 vi.mock('../../authentication/useAuth', () => ({ useAuth: vi.fn() }));
+vi.mock('../../orders/api/orderApi', () => ({ orderApi: { forSession: vi.fn().mockRejectedValue({ isAxiosError: true, response: { status: 404 } }) } }));
 const base: RestaurantTable = { id: 't0', restaurantId: 'r1', areaId: 'hall', tableNumber: '1', name: null, capacity: 4, tableType: 0, displayOrder: 0, isActive: true, currentStatus: 0, createdAtUtc: '', updatedAtUtc: null, rowVersion: 'v1' };
 const tables = Array.from({ length: 6 }, (_, index) => ({ ...base, id: `t${index}`, tableNumber: String(index + 1), areaId: index === 1 ? 'patio' : 'hall', currentStatus: index }));
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(orderApi.forSession).mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
   vi.mocked(diningSessionApi.list).mockResolvedValue([]);
   vi.mocked(diningSessionApi.waiters).mockResolvedValue([]);
   vi.mocked(useAuth).mockReturnValue({ user: { role: 'Manager' }, hasPermission: () => true } as unknown as ReturnType<typeof useAuth>);

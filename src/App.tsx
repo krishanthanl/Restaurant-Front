@@ -13,6 +13,10 @@ import { PermissionRoute } from './features/authentication/PermissionRoute';
 import { ForbiddenPage } from './features/authentication/ForbiddenPage';
 import { Permissions } from './features/authentication/permissions';
 import { AccessControlPage } from './features/access-control/AccessControlPage';
+import { KitchenManagementPage } from './features/kitchens/pages/KitchenManagementPage';
+import { ActiveOrdersPage } from './features/orders/pages/ActiveOrdersPage';
+import { OrderPage } from './features/orders/pages/OrderPage';
+import { OrderAccessRoute } from './features/orders/OrderAccessRoute';
 
 export default function App() {
   return (
@@ -20,12 +24,17 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
+          <Route element={<OrderAccessRoute />}>
+            <Route path="orders/active" element={<ActiveOrdersPage />} />
+            <Route path="orders/:id" element={<OrderPage />} />
+          </Route>
           <Route path="restaurant/table-dashboard" element={<TableDashboardPage />} />
           <Route path="restaurant/tables" element={<TableManagementPage />} />
           <Route path="restaurant/areas" element={<AreaManagementPage />} />
           <Route index element={<Navigate to="/menu/items" replace />} />
           <Route path="menu/categories" element={<CategoryManagementPage />} />
           <Route path="menu/items" element={<MenuItemsPage />} />
+          <Route path="menu/kitchens" element={<KitchenManagementPage />} />
           <Route path="forbidden" element={<ForbiddenPage />} />
           <Route element={<PermissionRoute permission={Permissions.menuManage} />}>
             <Route path="menu/items/new" element={<MenuItemFormPage />} />
