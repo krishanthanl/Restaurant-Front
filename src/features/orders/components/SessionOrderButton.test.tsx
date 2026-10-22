@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { SessionOrderButton } from './SessionOrderButton';
 import { orderApi } from '../api/orderApi';
 import { diningSessionApi } from '../../dining-sessions/api/diningSessionApi';
@@ -26,7 +27,9 @@ it('starts with the latest session version after guest or waiter details change'
 });
 it('opens the existing shared order', async () => {
   vi.mocked(orderApi.forSession).mockResolvedValue({ id: 'o1', orderNumber: 17 } as Order);
-  render(<SessionOrderButton session={session} disabled={false} />);
+  const onHasOrder = vi.fn();
+  render(<MemoryRouter><SessionOrderButton session={session} disabled={false} onHasOrder={onHasOrder} /></MemoryRouter>);
   expect(await screen.findByRole('link', { name: 'Open order #17' })).toHaveAttribute('href', '/orders/o1');
+  expect(onHasOrder).toHaveBeenLastCalledWith(true);
   expect(orderApi.create).not.toHaveBeenCalled();
 });

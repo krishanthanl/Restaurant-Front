@@ -4,8 +4,9 @@ import type { DiningSession, SessionInput, Waiter } from '../types/diningSession
 import { DiningSessionForm } from './DiningSessionForm';
 import { DiningSessionStatusChip } from './DiningSessionStatusChip';
 import { validSessionInput } from '../validation/diningSessionValidation';
-export function DiningSessionDetailsDialog({ session, capacity, waiters, saving, canCancel, onSave, onAction }:
-  { session: DiningSession; capacity: number; waiters: Waiter[]; saving: boolean; canCancel: boolean;
+// hasOrder is null until the session's order has been looked up; ending is only offered once we know there is none.
+export function DiningSessionDetailsDialog({ session, capacity, waiters, saving, canCancel, hasOrder, onSave, onAction }:
+  { session: DiningSession; capacity: number; waiters: Waiter[]; saving: boolean; canCancel: boolean; hasOrder: boolean | null;
     onSave: (input: SessionInput) => void; onAction: (action: 'close' | 'cancel') => void }) {
   const [editing, setEditing] = useState(false);
   const [guests, setGuests] = useState(String(session.guestCount));
@@ -28,8 +29,9 @@ export function DiningSessionDetailsDialog({ session, capacity, waiters, saving,
       {editing ? <><Button disabled={saving || !validSessionInput(guests, capacity, notes)} onClick={() => onSave({ guestCount: Number(guests), waiterId: waiterId || null, notes: notes.trim() || null })}>Save session</Button>
         <Button disabled={saving} onClick={() => setEditing(false)}>Discard edits</Button></> :
         <Button disabled={saving} onClick={() => setEditing(true)}>Edit session</Button>}
-      <Button disabled={saving} onClick={() => onAction('close')}>Close dining session</Button>
-      {canCancel && <Button color="error" disabled={saving} onClick={() => onAction('cancel')}>Cancel dining session</Button>}
+      {hasOrder === false && <Button disabled={saving} onClick={() => onAction('close')}>Close dining session</Button>}
+      {hasOrder === false && canCancel && <Button color="error" disabled={saving} onClick={() => onAction('cancel')}>Cancel dining session</Button>}
     </Stack>
+    {hasOrder && <Typography variant="body2" color="text.secondary">This visit has an order. Close or cancel it from the order screen.</Typography>}
   </Stack>;
 }

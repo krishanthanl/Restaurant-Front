@@ -6,20 +6,23 @@ import type { Order } from '../types/orderTypes';
 type Pending = { task: () => Promise<Order>; onSuccess?: () => void };
 
 // Ambiguous failures keep the exact payload/operation ID; retry must not create a second write.
-export function useOrderMutation(reload: () => Promise<void>) {
+// With apply, a successful write shows the order it returned instead of reloading everything.
+export function useOrderMutation(reload: () => Promise<void>, apply?: (order: Order) => void) {
   const lock = useRef(false);
   const pending = useRef<Pending | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryPending, setRetryPending] = useState(false);
   const [refreshRequired, setRefreshRequired] = useState(false);
-  const execute = async (request: Pending) => {
+  const execute = async (request: Pending, retried = false) => {
     if (lock.current) return;
     lock.current = true; setSaving(true); setError(null);
     try {
-      await request.task();
+      const saved = await request.task();
       pending.current = null; setRetryPending(false);
       request.onSuccess?.();
+      // A retry may be answered with the stored response of the first attempt, which can be older than the order now.
+      if (apply && !retried) { apply(saved); setRefreshRequired(false); return; }
       try { await reload(); setRefreshRequired(false); }
       catch (e) { setRefreshRequired(true); setError(`Saved. Refresh current data before continuing. ${getApiErrorMessage(e)}`); }
     } catch (e) {
@@ -38,7 +41,7 @@ export function useOrderMutation(reload: () => Promise<void>) {
       if (lock.current || pending.current || refreshRequired) return Promise.resolve();
       return execute({ task, onSuccess });
     },
-    retry() { return pending.current ? execute(pending.current) : Promise.resolve(); },
+    retry() { return pending.current ? execute(pending.current, true) : Promise.resolve(); },
     async refresh() {
       if (lock.current) return;
       lock.current = true; setSaving(true);

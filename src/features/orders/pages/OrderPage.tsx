@@ -56,7 +56,7 @@ export function OrderPage() {
     } catch (e) { setMenuError(getApiErrorMessage(e)); throw e; }
     finally { setMenuLoading(false); }
   }, [loadOrder, page, search, categoryId]);
-  const mutation = useOrderMutation(reload);
+  const mutation = useOrderMutation(reload, setOrder);
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setError(null);
     orderApi.get(id, controller.signal).then(value => { if (!controller.signal.aborted) setOrder(value); })
@@ -126,8 +126,9 @@ export function OrderPage() {
         <Typography variant="body2">Subtotal excludes tax, service charges and payments.</Typography>
         {order.status < 2 && <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
           {order.status === 0 && hasPermission(Permissions.ordersSubmit) && <Button variant="contained" disabled={mutation.blocked || !order.items.length || notesDirty || dirtyLines.size > 0} onClick={() => setAction('ready')}>Ready to bill</Button>}
+          {order.status === 1 && hasPermission(Permissions.ordersSubmit) && <Button disabled={mutation.blocked} onClick={() => run(op => orderApi.reopen(order.id, order.rowVersion, op))}>Reopen to add items</Button>}
           {order.status === 1 && hasPermission(Permissions.billingManage) && <Button variant="contained" disabled={mutation.blocked} onClick={() => setAction('close')}>Close order and visit</Button>}
-          {hasPermission(Permissions.ordersVoid) && <Button color="error" disabled={mutation.blocked} onClick={() => { setReason(''); setAction('cancel'); }}>Cancel order and visit</Button>}
+          {hasPermission(Permissions.ordersVoid) && (order.status === 0 || hasPermission(Permissions.ordersVoidAfterKitchen)) && <Button color="error" disabled={mutation.blocked} onClick={() => { setReason(''); setAction('cancel'); }}>Cancel order and visit</Button>}
         </Stack>}
         {(notesDirty || dirtyLines.size > 0) && <Typography role="status">Save your item and order notes before marking ready to bill.</Typography>}
         {order.closedAtUtc && <Typography>Closed {new Date(order.closedAtUtc).toLocaleString()}. No payment was recorded.</Typography>}

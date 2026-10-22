@@ -26,6 +26,10 @@ export const tableApi = {
     const { data } = await apiClient.put<RestaurantTable>(`/tables/${table.id}/condition`, { condition, rowVersion: table.rowVersion });
     return data;
   },
+  async markReady(table: RestaurantTable) {
+    const { data } = await apiClient.put<RestaurantTable>(`/tables/${table.id}/mark-ready`, { rowVersion: table.rowVersion });
+    return data;
+  },
   async setTableStatus(table: RestaurantTable, isActive: boolean) {
     const { data } = await apiClient.put<RestaurantTable>(`/tables/${table.id}/${isActive ? 'activate' : 'deactivate'}`, { rowVersion: table.rowVersion });
     return data;

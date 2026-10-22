@@ -8,7 +8,7 @@ import { useAuth } from '../../authentication/useAuth';
 import type { Order } from '../types/orderTypes';
 import type { MenuItem } from '../../menu/types/menuTypes';
 
-vi.mock('../api/orderApi', () => ({ orderApi: { get: vi.fn(), add: vi.fn(), updateItem: vi.fn(), notes: vi.fn(), ready: vi.fn(), end: vi.fn(), remove: vi.fn() } }));
+vi.mock('../api/orderApi', () => ({ orderApi: { get: vi.fn(), add: vi.fn(), updateItem: vi.fn(), notes: vi.fn(), ready: vi.fn(), end: vi.fn(), remove: vi.fn(), reopen: vi.fn() } }));
 vi.mock('../../menu/api/menuApi', () => ({ menuApi: { getCategories: vi.fn(), getItems: vi.fn() } }));
 vi.mock('../../authentication/useAuth', () => ({ useAuth: vi.fn() }));
 const base: Order = {
@@ -89,4 +89,30 @@ it('keeps line drafts and the readiness guard when retrying a failed menu search
   await screen.findByRole('button', { name: 'Add Soup' }, { timeout: 5000 });
   expect(screen.getByLabelText('Notes for Soup')).toHaveValue('Peanut allergy');
   expect(screen.getByRole('button', { name: 'Ready to bill' })).toBeDisabled();
+});
+
+it('shows the saved order after an add without reloading the order or menu', async () => {
+  vi.mocked(orderApi.add).mockResolvedValue({ ...base, subtotal: 38.25, rowVersion: 'v2', items: [{ ...base.items[0], quantity: 3, lineTotal: 38.25 }] });
+  show();
+  fireEvent.click(await screen.findByRole('button', { name: 'Add Soup' }));
+  expect(await screen.findByText('Subtotal: 38.25')).toBeInTheDocument();
+  expect(orderApi.get).toHaveBeenCalledTimes(1);
+  expect(menuApi.getItems).toHaveBeenCalledTimes(1);
+});
+
+it('reopens an order that is ready to bill so late items can be added', async () => {
+  vi.mocked(orderApi.get).mockResolvedValue({ ...base, status: 1 });
+  vi.mocked(orderApi.reopen).mockResolvedValue({ ...base, status: 0, rowVersion: 'v2' });
+  show();
+  fireEvent.click(await screen.findByRole('button', { name: 'Reopen to add items' }));
+  await waitFor(() => expect(orderApi.reopen).toHaveBeenCalledWith('o1', 'v1', expect.any(String)));
+  expect(await screen.findByRole('button', { name: 'Add Soup' })).toBeInTheDocument();
+});
+
+it('does not offer reopening without the submit permission', async () => {
+  vi.mocked(orderApi.get).mockResolvedValue({ ...base, status: 1 });
+  vi.mocked(useAuth).mockReturnValue({ hasPermission: (permission: string) => permission === 'billing.manage' } as unknown as ReturnType<typeof useAuth>);
+  show();
+  await screen.findByRole('button', { name: 'Close order and visit' });
+  expect(screen.queryByRole('button', { name: 'Reopen to add items' })).not.toBeInTheDocument();
 });

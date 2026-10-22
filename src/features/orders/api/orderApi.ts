@@ -23,6 +23,9 @@ export const orderApi = {
   async ready(id: string, rowVersion: string, operationId: string) {
     return (await apiClient.post<Order>(`/orders/${id}/ready-to-bill`, { rowVersion, operationId })).data;
   },
+  async reopen(id: string, rowVersion: string, operationId: string) {
+    return (await apiClient.post<Order>(`/orders/${id}/reopen`, { rowVersion, operationId })).data;
+  },
   async end(id: string, action: 'close' | 'cancel', rowVersion: string, sessionRowVersion: string, operationId: string, reason?: string) {
     return (await apiClient.post<Order>(`/orders/${id}/${action}`, { rowVersion, sessionRowVersion, operationId, reason })).data;
   },
