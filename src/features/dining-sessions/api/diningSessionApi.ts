@@ -26,6 +26,6 @@ export const diningSessionApi = {
   async updateNotes(session: DiningSession, notes: string | null) {
     return (await apiClient.put<DiningSession>(`/dining-sessions/${session.id}/notes`, { notes, rowVersion: session.rowVersion })).data;
   },
-  async close(id: string, rowVersion: string) { return (await apiClient.post<DiningSession>(`/dining-sessions/${id}/close`, { rowVersion })).data; },
+  async close(id: string, rowVersion: string, reason: string) { return (await apiClient.post<DiningSession>(`/dining-sessions/${id}/close`, { rowVersion, reason })).data; },
   async cancel(id: string, rowVersion: string, reason: string) { return (await apiClient.post<DiningSession>(`/dining-sessions/${id}/cancel`, { rowVersion, reason })).data; },
 };

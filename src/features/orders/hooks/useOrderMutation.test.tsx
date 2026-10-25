@@ -39,3 +39,23 @@ it('blocks new writes until refresh succeeds after a failed refresh', async () =
   await act(async () => { await result.current.refresh(); });
   await waitFor(() => expect(result.current.blocked).toBe(false));
 });
+
+it('shows the returned order after a successful write instead of reloading', async () => {
+  const reload = vi.fn().mockResolvedValue(undefined);
+  const apply = vi.fn();
+  const saved = { id: 'o1', rowVersion: 'v2' } as Order;
+  const { result } = renderHook(() => useOrderMutation(reload, apply));
+  await act(async () => { await result.current.run(async () => saved); });
+  expect(apply).toHaveBeenCalledWith(saved); expect(reload).not.toHaveBeenCalled();
+  expect(result.current.blocked).toBe(false);
+});
+
+it('reloads instead of applying when a retried write succeeds', async () => {
+  const reload = vi.fn().mockResolvedValue(undefined);
+  const apply = vi.fn();
+  const task = vi.fn().mockRejectedValueOnce(new Error('Connection lost')).mockResolvedValue({ id: 'o1' } as Order);
+  const { result } = renderHook(() => useOrderMutation(reload, apply));
+  await act(async () => { await result.current.run(task); });
+  await act(async () => { await result.current.retry(); });
+  expect(apply).not.toHaveBeenCalled(); expect(reload).toHaveBeenCalledTimes(2);
+});

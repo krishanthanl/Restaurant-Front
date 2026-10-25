@@ -17,6 +17,7 @@ import { KitchenManagementPage } from './features/kitchens/pages/KitchenManageme
 import { ActiveOrdersPage } from './features/orders/pages/ActiveOrdersPage';
 import { OrderPage } from './features/orders/pages/OrderPage';
 import { OrderAccessRoute } from './features/orders/OrderAccessRoute';
+import { KitchenDisplayPage } from './features/kitchen/pages/KitchenDisplayPage';
 
 export default function App() {
   return (
@@ -39,6 +40,9 @@ export default function App() {
           <Route element={<PermissionRoute permission={Permissions.menuManage} />}>
             <Route path="menu/items/new" element={<MenuItemFormPage />} />
             <Route path="menu/items/:id/edit" element={<MenuItemFormPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission={Permissions.kitchenManage} />}>
+            <Route path="kitchen/display" element={<KitchenDisplayPage />} />
           </Route>
           <Route element={<PermissionRoute permission={Permissions.usersManage} />}>
             <Route path="administration/access-control" element={<AccessControlPage />} />

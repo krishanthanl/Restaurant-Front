@@ -7,8 +7,10 @@ import { menuApi } from '../../menu/api/menuApi';
 import { useAuth } from '../../authentication/useAuth';
 import type { Order } from '../types/orderTypes';
 import type { MenuItem } from '../../menu/types/menuTypes';
+import { kitchenTicketApi } from '../../kitchen/api/kitchenTicketApi';
 
-vi.mock('../api/orderApi', () => ({ orderApi: { get: vi.fn(), add: vi.fn(), updateItem: vi.fn(), notes: vi.fn(), ready: vi.fn(), end: vi.fn(), remove: vi.fn() } }));
+vi.mock('../api/orderApi', () => ({ orderApi: { get: vi.fn(), add: vi.fn(), updateItem: vi.fn(), notes: vi.fn(), ready: vi.fn(), end: vi.fn(), remove: vi.fn(), reopen: vi.fn(), sendToKitchen: vi.fn(), voidItem: vi.fn() } }));
+vi.mock('../../kitchen/api/kitchenTicketApi', () => ({ kitchenTicketApi: { advance: vi.fn() } }));
 vi.mock('../../menu/api/menuApi', () => ({ menuApi: { getCategories: vi.fn(), getItems: vi.fn() } }));
 vi.mock('../../authentication/useAuth', () => ({ useAuth: vi.fn() }));
 const base: Order = {
@@ -89,4 +91,81 @@ it('keeps line drafts and the readiness guard when retrying a failed menu search
   await screen.findByRole('button', { name: 'Add Soup' }, { timeout: 5000 });
   expect(screen.getByLabelText('Notes for Soup')).toHaveValue('Peanut allergy');
   expect(screen.getByRole('button', { name: 'Ready to bill' })).toBeDisabled();
+});
+
+it('shows the saved order after an add without reloading the order or menu', async () => {
+  vi.mocked(orderApi.add).mockResolvedValue({ ...base, subtotal: 38.25, rowVersion: 'v2', items: [{ ...base.items[0], quantity: 3, lineTotal: 38.25 }] });
+  show();
+  fireEvent.click(await screen.findByRole('button', { name: 'Add Soup' }));
+  expect(await screen.findByText('Subtotal: 38.25')).toBeInTheDocument();
+  expect(orderApi.get).toHaveBeenCalledTimes(1);
+  expect(menuApi.getItems).toHaveBeenCalledTimes(1);
+});
+
+it('reopens an order that is ready to bill so late items can be added', async () => {
+  vi.mocked(orderApi.get).mockResolvedValue({ ...base, status: 1 });
+  vi.mocked(orderApi.reopen).mockResolvedValue({ ...base, status: 0, rowVersion: 'v2' });
+  show();
+  fireEvent.click(await screen.findByRole('button', { name: 'Reopen to add items' }));
+  await waitFor(() => expect(orderApi.reopen).toHaveBeenCalledWith('o1', 'v1', expect.any(String)));
+  expect(await screen.findByRole('button', { name: 'Add Soup' })).toBeInTheDocument();
+});
+
+it('does not offer reopening without the submit permission', async () => {
+  vi.mocked(orderApi.get).mockResolvedValue({ ...base, status: 1 });
+  vi.mocked(useAuth).mockReturnValue({ hasPermission: (permission: string) => permission === 'billing.manage' } as unknown as ReturnType<typeof useAuth>);
+  show();
+  await screen.findByRole('button', { name: 'Close order and visit' });
+  expect(screen.queryByRole('button', { name: 'Reopen to add items' })).not.toBeInTheDocument();
+});
+
+const sentOrder: Order = {
+  ...base,
+  items: [{ ...base.items[0], kitchenTicketId: 'tk1', sentAtUtc: '2026-10-21T10:05:00Z' }],
+  tickets: [{ id: 'tk1', ticketNumber: 1, kitchenId: 'k1', kitchenCode: 'HOT', kitchenName: 'Hot kitchen', status: 2, sentAtUtc: '2026-10-21T10:05:00Z', preparedAtUtc: null, servedAtUtc: null, rowVersion: 'tv1' }],
+};
+
+it('sends new items to the kitchen before the bill can be requested', async () => {
+  vi.mocked(orderApi.sendToKitchen).mockResolvedValue({ ...sentOrder, rowVersion: 'v2' });
+  show();
+  expect(await screen.findByRole('button', { name: 'Ready to bill' })).toBeDisabled();
+  expect(screen.getByText('Send new items to the kitchen before requesting the bill.')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Send to kitchen (1)' }));
+  await waitFor(() => expect(orderApi.sendToKitchen).toHaveBeenCalledWith('o1', 'v1', expect.any(String)));
+  expect(await screen.findByText('Sent · Hot kitchen · Preparing')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Send to kitchen/ })).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Quantity for Soup')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Ready to bill' })).toBeEnabled();
+});
+
+it('voids a sent item with a reason when the user may', async () => {
+  vi.mocked(orderApi.get).mockResolvedValue(sentOrder);
+  vi.mocked(orderApi.voidItem).mockResolvedValue({ ...sentOrder, subtotal: 0, rowVersion: 'v2', items: [{ ...sentOrder.items[0], lineTotal: 0, voidedAtUtc: '2026-10-21T10:10:00Z', voidReason: 'Guest changed mind' }] });
+  show();
+  fireEvent.click(await screen.findByRole('button', { name: 'Void item' }));
+  expect(screen.getByRole('button', { name: 'Confirm' })).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('Void reason'), { target: { value: 'Guest changed mind' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+  await waitFor(() => expect(orderApi.voidItem).toHaveBeenCalledWith('o1', 'l1', 'Guest changed mind', 'v1', expect.any(String)));
+  expect(await screen.findByText('Voided: Guest changed mind')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Void item' })).not.toBeInTheDocument();
+});
+
+it('hides voiding from staff without the after-kitchen permission', async () => {
+  vi.mocked(orderApi.get).mockResolvedValue(sentOrder);
+  vi.mocked(useAuth).mockReturnValue({ hasPermission: (p: string) => p !== 'orders.void-after-kitchen' } as unknown as ReturnType<typeof useAuth>);
+  show();
+  await screen.findByText('Sent · Hot kitchen · Preparing');
+  expect(screen.queryByRole('button', { name: 'Void item' })).not.toBeInTheDocument();
+});
+
+it('marks prepared food as served and shows the refreshed order', async () => {
+  const prepared = { ...sentOrder, tickets: [{ ...sentOrder.tickets![0], status: 3 as const }] };
+  vi.mocked(orderApi.get).mockResolvedValueOnce(prepared).mockResolvedValue({ ...prepared, tickets: [{ ...prepared.tickets[0], status: 4 as const }] });
+  vi.mocked(kitchenTicketApi.advance).mockResolvedValue({} as never);
+  show();
+  fireEvent.click(await screen.findByRole('button', { name: 'Mark served' }));
+  await waitFor(() => expect(kitchenTicketApi.advance).toHaveBeenCalledWith(prepared.tickets[0], 'served'));
+  expect(await screen.findByText('Served')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Mark served' })).not.toBeInTheDocument();
 });

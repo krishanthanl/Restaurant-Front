@@ -11,7 +11,11 @@ import type { MenuCategory, MenuItem as MenuItemModel, PagedResponse } from '../
 import { orderApi } from '../api/orderApi';
 import { formatAmount, orderStatusLabels, type Order } from '../types/orderTypes';
 import { useOrderMutation } from '../hooks/useOrderMutation';
+import { kitchenTicketApi } from '../../kitchen/api/kitchenTicketApi';
+import { KitchenTicketStatus, kitchenTicketStatusLabels } from '../../kitchen/types/kitchenTicketTypes';
 import { OrderLineEditor } from '../components/OrderLineEditor';
+
+const OrderRefreshMs = 20_000;
 
 export function OrderPage() {
   const { id = '' } = useParams();
@@ -38,7 +42,8 @@ export function OrderPage() {
       const next = new Set(previous); if (dirty) next.add(lineId); else next.delete(lineId); return next;
     });
   }, []);
-  const [action, setAction] = useState<'ready' | 'close' | 'cancel' | null>(null);
+  const [action, setAction] = useState<'ready' | 'close' | 'cancel' | 'void' | null>(null);
+  const [voidItemId, setVoidItemId] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const editable = hasPermission(Permissions.ordersCreate) && order?.status === 0;
   const loadOrder = useCallback(async () => {
@@ -56,7 +61,14 @@ export function OrderPage() {
     } catch (e) { setMenuError(getApiErrorMessage(e)); throw e; }
     finally { setMenuLoading(false); }
   }, [loadOrder, page, search, categoryId]);
-  const mutation = useOrderMutation(reload);
+  const mutation = useOrderMutation(reload, setOrder);
+  // Kitchen progress changes on other screens; keep ticket states current without disturbing drafts.
+  const busy = mutation.saving || mutation.blocked;
+  useEffect(() => {
+    if (busy) return;
+    const timer = window.setInterval(() => { orderApi.get(id).then(setOrder).catch(() => { /* next tick retries */ }); }, OrderRefreshMs);
+    return () => window.clearInterval(timer);
+  }, [id, busy]);
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setError(null);
     orderApi.get(id, controller.signal).then(value => { if (!controller.signal.aborted) setOrder(value); })
@@ -83,6 +95,12 @@ export function OrderPage() {
     void mutation.run(() => task(operationId), saved);
   };
   if (loading) return <LoadingState label="Loading order…" />;
+  const unsent = order?.items.filter(x => !x.kitchenTicketId).length ?? 0;
+  const canVoid = hasPermission(Permissions.ordersVoidAfterKitchen) && order?.status === 0;
+  const ticketLabel = (ticketId?: string | null) => {
+    const ticket = order?.tickets?.find(t => t.id === ticketId);
+    return ticket ? `${ticket.kitchenName} · ${kitchenTicketStatusLabels[ticket.status]}` : undefined;
+  };
   if (error || !order) return <ErrorState message={error ?? 'Order was not found.'} onRetry={() => setRevision(x => x + 1)} />;
   return <>
     <PageHeader eyebrow="Dine-in service" title={`Order #${order.orderNumber}`} description={`Tables ${order.tables.map(t => t.tableNumber).join(' + ')} · ${order.guestCount} guests · ${order.waiterName ?? 'Unassigned waiter'}`}
@@ -116,35 +134,49 @@ export function OrderPage() {
       <Stack component="section" aria-label="Order details" spacing={2}>
         {order.items.length === 0 && <Typography>No items yet. Add items from the menu.</Typography>}
         {order.items.map(item => <OrderLineEditor key={item.id} item={item} editable={editable} disabled={mutation.blocked} onDirty={lineDirty}
+          ticketLabel={ticketLabel(item.kitchenTicketId)} onVoid={canVoid ? () => { setReason(''); setVoidItemId(item.id); setAction('void'); } : undefined}
           onSave={(quantity, itemNotes, saved) => run(op => orderApi.updateItem(order.id, item.id, quantity, itemNotes || null, order.rowVersion, op), saved)}
           onRemove={() => run(op => orderApi.remove(order.id, item.id, order.rowVersion, op))} />)}
         {editable ? <>
           <TextField label="Order notes" value={notes} multiline disabled={mutation.blocked} onChange={e => { setNotes(e.target.value); setNotesDirty(true); }} slotProps={{ htmlInput: { maxLength: 1000 } }} />
           <Button disabled={mutation.blocked || !notesDirty} onClick={() => run(op => orderApi.notes(order.id, notes || null, order.rowVersion, op), () => setNotesDirty(false))}>Save notes</Button>
         </> : <Typography>Notes: {order.notes ?? 'None'}</Typography>}
+        {!!order.tickets?.length && <Stack component="section" aria-label="Kitchen tickets" spacing={1}>
+          <Typography variant="h6">Kitchen tickets</Typography>
+          {order.tickets.map(ticket => <Stack key={ticket.id} direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+            <Typography>Ticket {ticket.ticketNumber} · {ticket.kitchenName}</Typography>
+            <Chip size="small" label={kitchenTicketStatusLabels[ticket.status]} color={ticket.status === KitchenTicketStatus.Prepared ? 'success' : 'default'} />
+            {ticket.status === KitchenTicketStatus.Prepared && order.status < 2 && hasPermission(Permissions.ordersCreate) &&
+              <Button size="small" disabled={mutation.blocked} onClick={() => run(async () => { await kitchenTicketApi.advance(ticket, 'served'); return orderApi.get(order.id); })}>Mark served</Button>}
+          </Stack>)}
+        </Stack>}
         <Typography variant="h5">Subtotal: {formatAmount(order.subtotal)}</Typography>
         <Typography variant="body2">Subtotal excludes tax, service charges and payments.</Typography>
         {order.status < 2 && <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-          {order.status === 0 && hasPermission(Permissions.ordersSubmit) && <Button variant="contained" disabled={mutation.blocked || !order.items.length || notesDirty || dirtyLines.size > 0} onClick={() => setAction('ready')}>Ready to bill</Button>}
+          {order.status === 0 && unsent > 0 && hasPermission(Permissions.ordersCreate) && <Button variant="contained" disabled={mutation.blocked || notesDirty || dirtyLines.size > 0} onClick={() => run(op => orderApi.sendToKitchen(order.id, order.rowVersion, op))}>Send to kitchen ({unsent})</Button>}
+          {order.status === 0 && hasPermission(Permissions.ordersSubmit) && <Button variant="contained" disabled={mutation.blocked || !order.items.length || unsent > 0 || notesDirty || dirtyLines.size > 0} onClick={() => setAction('ready')}>Ready to bill</Button>}
+          {order.status === 1 && hasPermission(Permissions.ordersSubmit) && <Button disabled={mutation.blocked} onClick={() => run(op => orderApi.reopen(order.id, order.rowVersion, op))}>Reopen to add items</Button>}
           {order.status === 1 && hasPermission(Permissions.billingManage) && <Button variant="contained" disabled={mutation.blocked} onClick={() => setAction('close')}>Close order and visit</Button>}
-          {hasPermission(Permissions.ordersVoid) && <Button color="error" disabled={mutation.blocked} onClick={() => { setReason(''); setAction('cancel'); }}>Cancel order and visit</Button>}
+          {hasPermission(Permissions.ordersVoid) && (order.status === 0 || hasPermission(Permissions.ordersVoidAfterKitchen)) && <Button color="error" disabled={mutation.blocked} onClick={() => { setReason(''); setAction('cancel'); }}>Cancel order and visit</Button>}
         </Stack>}
-        {(notesDirty || dirtyLines.size > 0) && <Typography role="status">Save your item and order notes before marking ready to bill.</Typography>}
+        {(notesDirty || dirtyLines.size > 0) && <Typography role="status">Save your item and order notes before sending or marking ready to bill.</Typography>}
+        {order.status === 0 && unsent > 0 && <Typography role="status">Send new items to the kitchen before requesting the bill.</Typography>}
         {order.closedAtUtc && <Typography>Closed {new Date(order.closedAtUtc).toLocaleString()}. No payment was recorded.</Typography>}
         {order.cancellationReason && <Typography>Cancelled: {order.cancellationReason}</Typography>}
         {order.status >= 2 && <Button component={Link} to="/restaurant/table-dashboard">Return to table dashboard</Button>}
       </Stack>
     </Box>
     <Dialog open={action !== null} onClose={() => { if (!mutation.saving) setAction(null); }} fullWidth maxWidth="sm">
-      <DialogTitle>{action === 'ready' ? 'Mark ready to bill?' : action === 'close' ? 'Close order and dining session?' : 'Cancel order and dining session?'}</DialogTitle>
+      <DialogTitle>{action === 'ready' ? 'Mark ready to bill?' : action === 'close' ? 'Close order and dining session?' : action === 'void' ? 'Void item?' : 'Cancel order and dining session?'}</DialogTitle>
       <DialogContent><Stack spacing={2}>
-        <Typography>{action === 'ready' ? 'Item and note editing will be locked.' : 'All tables assigned to this dining session will be released. No payment will be recorded.'}</Typography>
-        {action === 'cancel' && <TextField label="Cancellation reason" value={reason} onChange={e => setReason(e.target.value)} multiline disabled={mutation.saving} slotProps={{ htmlInput: { maxLength: 500 } }} />}
+        <Typography>{action === 'ready' ? 'Item and note editing will be locked.' : action === 'void' ? 'The kitchen will see the item struck out and it leaves the bill.' : 'All tables assigned to this dining session will be released. No payment will be recorded.'}</Typography>
+        {(action === 'cancel' || action === 'void') && <TextField label={action === 'void' ? 'Void reason' : 'Cancellation reason'} value={reason} onChange={e => setReason(e.target.value)} multiline disabled={mutation.saving} slotProps={{ htmlInput: { maxLength: 500 } }} />}
       </Stack></DialogContent>
       <DialogActions><Button disabled={mutation.saving} onClick={() => setAction(null)}>Back</Button>
-        <Button variant="contained" disabled={mutation.blocked || action === 'cancel' && !reason.trim()} onClick={() => {
+        <Button variant="contained" disabled={mutation.blocked || (action === 'cancel' || action === 'void') && !reason.trim()} onClick={() => {
           if (!action) return;
           const selected = action; setAction(null);
+          if (selected === 'void') { if (voidItemId) run(op => orderApi.voidItem(order.id, voidItemId, reason, order.rowVersion, op)); return; }
           run(op => selected === 'ready' ? orderApi.ready(order.id, order.rowVersion, op) : orderApi.end(order.id, selected, order.rowVersion, order.sessionRowVersion, op, selected === 'cancel' ? reason : undefined));
         }}>Confirm</Button></DialogActions>
     </Dialog>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 import { Alert, Button, Stack } from '@mui/material';
 import type { DiningSession } from '../../dining-sessions/types/diningSessionTypes';
 import type { Order } from '../types/orderTypes';
@@ -7,8 +8,10 @@ import { orderApi } from '../api/orderApi';
 import { useOrderMutation } from '../hooks/useOrderMutation';
 import { getApiErrorMessage } from '../../../services/apiClient';
 import { diningSessionApi } from '../../dining-sessions/api/diningSessionApi';
+import { DiningSessionStatus } from '../../dining-sessions/types/diningSessionTypes';
 
-export function SessionOrderButton({ session, disabled }: { session: DiningSession; disabled: boolean }) {
+// onHasOrder reports, once known, whether the session has an order (the session itself can then only end through it).
+export function SessionOrderButton({ session, disabled, onHasOrder }: { session: DiningSession; disabled: boolean; onHasOrder?: (hasOrder: boolean) => void }) {
   const [order, setOrder] = useState<Order | null>(null);
   const [currentSession, setCurrentSession] = useState(session);
   const [loading, setLoading] = useState(true);
@@ -28,11 +31,12 @@ export function SessionOrderButton({ session, disabled }: { session: DiningSessi
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [session]);
+  useEffect(() => { if (!loading && !error) onHasOrder?.(order !== null); }, [loading, error, order, onHasOrder]);
   const mutation = useOrderMutation(reload);
   return <Stack spacing={1}>
     {(error || mutation.error) && <Alert severity="error">{error || mutation.error}</Alert>}
-    {order ? <Button variant="contained" href={`/orders/${order.id}`} disabled={disabled || mutation.saving}>Open order #{order.orderNumber}</Button> :
-      <Button variant="contained" disabled={disabled || loading || !!error || mutation.blocked || currentSession.status !== 0} onClick={() => {
+    {order ? <Button variant="contained" component={Link} to={`/orders/${order.id}`} disabled={disabled || mutation.saving}>Open order #{order.orderNumber}</Button> :
+      <Button variant="contained" disabled={disabled || loading || !!error || mutation.blocked || currentSession.status !== DiningSessionStatus.Active} onClick={() => {
         const operation = crypto.randomUUID();
         void mutation.run(async () => { const created = await orderApi.create(session.id, currentSession.rowVersion, operation); setOrder(created); return created; });
       }}>{mutation.saving ? 'Starting order…' : 'Start order'}</Button>}

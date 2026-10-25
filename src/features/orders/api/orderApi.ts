@@ -23,6 +23,15 @@ export const orderApi = {
   async ready(id: string, rowVersion: string, operationId: string) {
     return (await apiClient.post<Order>(`/orders/${id}/ready-to-bill`, { rowVersion, operationId })).data;
   },
+  async reopen(id: string, rowVersion: string, operationId: string) {
+    return (await apiClient.post<Order>(`/orders/${id}/reopen`, { rowVersion, operationId })).data;
+  },
+  async sendToKitchen(id: string, rowVersion: string, operationId: string) {
+    return (await apiClient.post<Order>(`/orders/${id}/send-to-kitchen`, { rowVersion, operationId })).data;
+  },
+  async voidItem(id: string, itemId: string, reason: string, rowVersion: string, operationId: string) {
+    return (await apiClient.post<Order>(`/orders/${id}/items/${itemId}/void`, { rowVersion, operationId, reason })).data;
+  },
   async end(id: string, action: 'close' | 'cancel', rowVersion: string, sessionRowVersion: string, operationId: string, reason?: string) {
     return (await apiClient.post<Order>(`/orders/${id}/${action}`, { rowVersion, sessionRowVersion, operationId, reason })).data;
   },

@@ -13,6 +13,7 @@ import RestaurantMenuRoundedIcon from '@mui/icons-material/RestaurantMenuRounded
 import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneRounded';
 import RoomOutlinedIcon from '@mui/icons-material/RoomOutlined';
 import SoupKitchenOutlinedIcon from '@mui/icons-material/SoupKitchenOutlined';
+import LocalDiningOutlinedIcon from '@mui/icons-material/LocalDiningOutlined';
 
 import TableRestaurantOutlinedIcon from '@mui/icons-material/TableRestaurantOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
@@ -26,6 +27,7 @@ const navigation: Array<{ label: string; path: string; icon: ReactNode; permissi
   { label: 'Menu items', path: '/menu/items', icon: <RestaurantMenuRoundedIcon /> },
   { label: 'Categories', path: '/menu/categories', icon: <CategoryOutlinedIcon /> },
   { label: 'Kitchens', path: '/menu/kitchens', icon: <SoupKitchenOutlinedIcon /> },
+  { label: 'Kitchen display', path: '/kitchen/display', icon: <LocalDiningOutlinedIcon />, permission: Permissions.kitchenManage },
   { label: 'Access control', path: '/administration/access-control', icon: <AdminPanelSettingsOutlinedIcon />, permission: Permissions.usersManage },
 ];
 

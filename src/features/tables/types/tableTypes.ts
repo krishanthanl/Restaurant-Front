@@ -10,6 +10,8 @@ export interface TableInput {
 }
 export type TableFilter = 'all' | 'active' | 'inactive';
 
+// Values match the backend TableOperationalStatus enum.
+export const TableStatus = { Available: 0, Occupied: 1, Reserved: 2, PaymentPending: 3, Cleaning: 4, OutOfService: 5 } as const;
 export const tableStatuses = [
  { label: "Available", color: "success" }, { label: "Occupied", color: "info" },
  { label: "Reserved", color: "secondary" }, { label: "Payment Pending", color: "warning" },
