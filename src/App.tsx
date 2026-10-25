@@ -13,6 +13,7 @@ import { PermissionRoute } from './features/authentication/PermissionRoute';
 import { ForbiddenPage } from './features/authentication/ForbiddenPage';
 import { Permissions } from './features/authentication/permissions';
 import { AccessControlPage } from './features/access-control/AccessControlPage';
+import { UsersPage } from './features/users/UsersPage';
 import { KitchenManagementPage } from './features/kitchens/pages/KitchenManagementPage';
 import { ActiveOrdersPage } from './features/orders/pages/ActiveOrdersPage';
 import { OrderPage } from './features/orders/pages/OrderPage';
@@ -54,7 +55,10 @@ export default function App() {
           <Route element={<PermissionRoute permission={Permissions.kitchenManage} />}>
             <Route path="kitchen/display" element={<KitchenDisplayPage />} />
           </Route>
-          <Route element={<PermissionRoute permission={Permissions.usersManage} />}>
+          <Route element={<PermissionRoute permission={Permissions.usersManage} roles={['Admin', 'Manager']} />}>
+            <Route path="administration/users" element={<UsersPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission={Permissions.usersManage} roles={['Admin']} />}>
             <Route path="administration/access-control" element={<AccessControlPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/menu/items" replace />} />
