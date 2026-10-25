@@ -61,7 +61,7 @@ it('disables mutations while an add is in flight and submits once', async () => 
 });
 
 it('shows frozen order details to a cashier and explains manual closure', async () => {
-  vi.mocked(orderApi.get).mockResolvedValue({ ...base, status: 1 });
+  vi.mocked(orderApi.get).mockResolvedValue({ ...sentOrder, status: 1, tickets: [{ ...sentOrder.tickets![0], status: 4 }] });
   vi.mocked(useAuth).mockReturnValue({ hasPermission: (p: string) => p === 'billing.manage' } as unknown as ReturnType<typeof useAuth>);
   show(); await screen.findByText('Ready to bill');
   expect(screen.queryByRole('button', { name: 'Save item' })).not.toBeInTheDocument();
@@ -135,7 +135,27 @@ it('sends new items to the kitchen before the bill can be requested', async () =
   expect(await screen.findByText('Sent · Hot kitchen · Preparing')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Send to kitchen/ })).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Quantity for Soup')).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Ready to bill' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Ready to bill' })).toBeDisabled();
+});
+
+it.each([0, 1, 2, 3] as const)('blocks billing and explains unserved ticket status %s', async status => {
+  vi.mocked(orderApi.get).mockResolvedValue({ ...sentOrder, tickets: [{ ...sentOrder.tickets![0], status }] });
+  show();
+  expect(await screen.findByRole('button', { name: 'Ready to bill' })).toBeDisabled();
+  expect(screen.getByText('1 kitchen ticket still needs to be marked served before billing or closing.')).toBeInTheDocument();
+});
+
+it('blocks closing an existing ready-to-bill order with unserved food', async () => {
+  vi.mocked(orderApi.get).mockResolvedValue({ ...sentOrder, status: 1 });
+  show();
+  expect(await screen.findByRole('button', { name: 'Close order and visit' })).toBeDisabled();
+  expect(orderApi.end).not.toHaveBeenCalled();
+});
+
+it('allows billing once the ticket is marked served', async () => {
+  vi.mocked(orderApi.get).mockResolvedValue({ ...sentOrder, tickets: [{ ...sentOrder.tickets![0], status: 4 }] });
+  show();
+  expect(await screen.findByRole('button', { name: 'Ready to bill' })).toBeEnabled();
 });
 
 it('voids a sent item with a reason when the user may', async () => {
