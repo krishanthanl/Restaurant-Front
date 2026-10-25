@@ -16,6 +16,7 @@ import SoupKitchenOutlinedIcon from '@mui/icons-material/SoupKitchenOutlined';
 import LocalDiningOutlinedIcon from '@mui/icons-material/LocalDiningOutlined';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 
 import TableRestaurantOutlinedIcon from '@mui/icons-material/TableRestaurantOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
@@ -27,6 +28,7 @@ type NavigationItem = { label: string; path: string; icon: ReactNode; permission
 const dailyNavigation: NavigationItem[] = [
   { label: 'Table dashboard', path: '/restaurant/table-dashboard', icon: <TableRestaurantOutlinedIcon /> },
   { label: 'Kitchen display', path: '/kitchen/display', icon: <LocalDiningOutlinedIcon />, permission: Permissions.kitchenManage },
+  { label: 'Billing', path: '/billing', icon: <ReceiptLongOutlinedIcon />, permission: Permissions.billingManage },
 ];
 
 const masterNavigation: NavigationItem[] = [
@@ -36,6 +38,7 @@ const masterNavigation: NavigationItem[] = [
   { label: 'Categories', path: '/menu/categories', icon: <CategoryOutlinedIcon /> },
   { label: 'Kitchens', path: '/menu/kitchens', icon: <SoupKitchenOutlinedIcon /> },
   { label: 'Access control', path: '/administration/access-control', icon: <AdminPanelSettingsOutlinedIcon />, permission: Permissions.usersManage },
+  { label: 'Billing settings', path: '/billing/settings', icon: <ReceiptLongOutlinedIcon />, permission: Permissions.billingSettingsManage },
 ];
 
 export function AppLayout() {
@@ -54,7 +57,7 @@ export function AppLayout() {
       label: 'Daily actions',
       items: [
         dailyNavigation[0],
-        ...(hasPermission(Permissions.ordersCreate) || hasPermission(Permissions.billingManage)
+        ...(hasPermission(Permissions.ordersCreate) || hasPermission(Permissions.ordersSubmit) || hasPermission(Permissions.billingManage)
           ? [{ label: 'Active orders', path: '/orders/active', icon: <RestaurantMenuRoundedIcon />, permission: undefined }] : []),
         ...dailyNavigation.slice(1),
       ],
@@ -92,7 +95,9 @@ export function AppLayout() {
             id={`navigation-${group.label.replaceAll(' ', '-').toLowerCase()}`} unmountOnExit>
           <List aria-label={group.label} sx={{ p: 0 }}>
             {group.items.map((item) => {
-              const selected = location.pathname.startsWith(item.path);
+              const selected = item.path === '/billing'
+                ? location.pathname === '/billing' || location.pathname.startsWith('/billing/orders/')
+                : location.pathname.startsWith(item.path);
               return (
                 <ListItemButton key={item.path} selected={selected} onClick={() => { navigate(item.path); setMobileOpen(false); }}
                   sx={{ pl: 3, borderRadius: 2.5, mb: 0.75, '&.Mui-selected': { bgcolor: 'primary.light', color: 'primary.dark' } }}>

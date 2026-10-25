@@ -48,7 +48,7 @@ export function ActiveOrdersPage() {
         <MenuItem value="">All areas</MenuItem>{areas.map(a => <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>)}
       </TextField>
       <TextField select label="Order status" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }} sx={{ minWidth: 180 }}>
-        <MenuItem value="">All active</MenuItem><MenuItem value="0">Open</MenuItem><MenuItem value="1">Ready to bill</MenuItem>
+        <MenuItem value="">All active</MenuItem><MenuItem value="0">Open</MenuItem><MenuItem value="1">Pending billing</MenuItem>
       </TextField>
       <Button onClick={() => { setWaiterId(waiterId ? '' : user?.id ?? ''); setPage(1); }} disabled={!user?.id}>{waiterId ? 'Show all staff' : 'Assigned to me'}</Button>
     </Stack>

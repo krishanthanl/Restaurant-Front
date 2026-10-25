@@ -112,6 +112,10 @@ export function OrderPage() {
     <PageHeader eyebrow="Dine-in service" title={`Order #${order.orderNumber}`} description={`Tables ${order.tables.map(t => t.tableNumber).join(' + ')} · ${order.guestCount} guests · ${order.waiterName ?? 'Unassigned waiter'}`}
       action={<Button component={Link} to="/orders/active" disabled={mutation.blocked}>Active orders</Button>} />
     <Stack direction="row" spacing={1} sx={{ mb: 2 }}><Chip label={orderStatusLabels[order.status]} /><Typography role="status">{mutation.saving ? 'Saving…' : mutation.error ? 'Action needs attention' : 'All confirmed changes saved'}</Typography></Stack>
+    {order.status === 1 && <Alert severity={order.billingStatus === 2 ? 'success' : 'info'} sx={{ mb: 2 }}>
+      {order.billingStatus === 2 ? 'Bill paid. Close the visit after guests leave; the table stays occupied until then.' : order.billingStatus === 1 ? 'Bill partially paid. The cashier must record the remaining payment before closure.' : 'Bill requested. Pending cashier billing and payment.'}
+      {order.billRequestedAtUtc && ` Requested ${new Date(order.billRequestedAtUtc).toLocaleString()}.`}
+    </Alert>}
     {mutation.error && <Alert severity="error" sx={{ mb: 2 }}>{mutation.error}</Alert>}
     <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
       {mutation.retryPending && <Button disabled={mutation.saving} onClick={() => void mutation.retry()}>Retry pending action</Button>}
@@ -166,28 +170,29 @@ export function OrderPage() {
         <Typography variant="body2">Subtotal excludes tax, service charges and payments.</Typography>
         {order.status < 2 && <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
           {order.status === 0 && unsent > 0 && hasPermission(Permissions.ordersCreate) && <Button variant="contained" disabled={mutation.blocked || notesDirty || dirtyLines.size > 0} onClick={() => run(op => orderApi.sendToKitchen(order.id, order.rowVersion, op))}>Send to kitchen ({unsent})</Button>}
-          {order.status === 0 && hasPermission(Permissions.ordersSubmit) && <Button variant="contained" disabled={mutation.blocked || !liveItems.length || serviceIncomplete || notesDirty || dirtyLines.size > 0} onClick={() => setAction('ready')}>Ready to bill</Button>}
-          {order.status === 1 && hasPermission(Permissions.ordersSubmit) && <Button disabled={mutation.blocked} onClick={() => run(op => orderApi.reopen(order.id, order.rowVersion, op))}>Reopen to add items</Button>}
-          {order.status === 1 && hasPermission(Permissions.billingManage) && <Button variant="contained" disabled={mutation.blocked || serviceIncomplete} onClick={() => setAction('close')}>Close order and visit</Button>}
+          {order.status === 0 && hasPermission(Permissions.ordersSubmit) && <Button variant="contained" disabled={mutation.blocked || !liveItems.length || serviceIncomplete || notesDirty || dirtyLines.size > 0} onClick={() => setAction('ready')}>Request bill</Button>}
+          {order.status === 1 && hasPermission(Permissions.ordersSubmit) && <Button disabled={mutation.blocked || order.hasActivePayments} onClick={() => run(op => orderApi.reopen(order.id, order.rowVersion, op))}>Reopen to add items</Button>}
+          {order.status === 1 && hasPermission(Permissions.billingManage) && <Button component={Link} to={`/billing/orders/${order.id}`} disabled={mutation.blocked}>Open billing</Button>}
+          {order.status === 1 && (hasPermission(Permissions.billingManage) || hasPermission(Permissions.ordersSubmit)) && <Button variant="contained" disabled={mutation.blocked || serviceIncomplete || order.billingStatus !== 2} onClick={() => setAction('close')}>Close visit</Button>}
           {hasPermission(Permissions.ordersVoid) && (order.status === 0 || hasPermission(Permissions.ordersVoidAfterKitchen)) && <Button color="error" disabled={mutation.blocked} onClick={() => { setReason(''); setAction('cancel'); }}>Cancel order and visit</Button>}
         </Stack>}
         {(notesDirty || dirtyLines.size > 0) && <Typography role="status">Save your item and order notes before sending or marking ready to bill.</Typography>}
         {order.status === 0 && unsent > 0 && <Typography role="status">Send new items to the kitchen before requesting the bill.</Typography>}
         {order.status === 1 && unsent > 0 && <Typography role="status">Reopen this order and send the remaining items to the kitchen before closing.</Typography>}
         {order.status < 2 && unservedTickets > 0 && <Typography role="status">{unservedTickets} kitchen {unservedTickets === 1 ? 'ticket still needs' : 'tickets still need'} to be marked served before billing or closing.</Typography>}
-        {order.closedAtUtc && <Typography>Closed {new Date(order.closedAtUtc).toLocaleString()}. No payment was recorded.</Typography>}
+        {order.closedAtUtc && <Typography>Closed {new Date(order.closedAtUtc).toLocaleString()}. {order.billingStatus === 2 ? 'Bill paid.' : 'Historical closure: no billing record is available.'}</Typography>}
         {order.cancellationReason && <Typography>Cancelled: {order.cancellationReason}</Typography>}
         {order.status >= 2 && <Button component={Link} to="/restaurant/table-dashboard">Return to table dashboard</Button>}
       </Stack>
     </Box>
     <Dialog open={action !== null} onClose={() => { if (!mutation.saving) setAction(null); }} fullWidth maxWidth="sm">
-      <DialogTitle>{action === 'ready' ? 'Mark ready to bill?' : action === 'close' ? 'Close order and dining session?' : action === 'void' ? 'Void item?' : 'Cancel order and dining session?'}</DialogTitle>
+      <DialogTitle>{action === 'ready' ? 'Customer requested the bill?' : action === 'close' ? 'Guests have left — close visit?' : action === 'void' ? 'Void item?' : 'Cancel order and dining session?'}</DialogTitle>
       <DialogContent><Stack spacing={2}>
-        <Typography>{action === 'ready' ? 'Item and note editing will be locked.' : action === 'void' ? 'The kitchen will see the item struck out and it leaves the bill.' : 'All tables assigned to this dining session will be released. No payment will be recorded.'}</Typography>
+        <Typography>{action === 'ready' ? 'The order will appear in Pending billing for the cashier. Item and note editing will be locked.' : action === 'void' ? 'The kitchen will see the item struck out and it leaves the bill.' : action === 'close' ? 'Payment is complete. Confirm the guests have left. Tables will be marked Cleaning.' : 'The visit will end and its tables will be marked Cleaning. Orders with active payments cannot be cancelled.'}</Typography>
         {(action === 'cancel' || action === 'void') && <TextField label={action === 'void' ? 'Void reason' : 'Cancellation reason'} value={reason} onChange={e => setReason(e.target.value)} multiline disabled={mutation.saving} slotProps={{ htmlInput: { maxLength: 500 } }} />}
       </Stack></DialogContent>
       <DialogActions><Button disabled={mutation.saving} onClick={() => setAction(null)}>Back</Button>
-        <Button variant="contained" disabled={mutation.blocked || ((action === 'ready' || action === 'close') && serviceIncomplete) || (action === 'cancel' || action === 'void') && !reason.trim()} onClick={() => {
+        <Button variant="contained" disabled={mutation.blocked || ((action === 'ready' || action === 'close') && serviceIncomplete) || (action === 'close' && order.billingStatus !== 2) || (action === 'cancel' || action === 'void') && !reason.trim()} onClick={() => {
           if (!action) return;
           const selected = action; setAction(null);
           if (selected === 'void') { if (voidItemId) run(op => orderApi.voidItem(order.id, voidItemId, reason, order.rowVersion, op)); return; }

@@ -2,7 +2,7 @@ import type { DiningSession } from '../../dining-sessions/types/diningSessionTyp
 import type { PagedResponse } from '../../menu/types/menuTypes';
 import type { KitchenTicketStatus } from '../../kitchen/types/kitchenTicketTypes';
 
-export const orderStatusLabels = ['Open', 'Ready to bill', 'Closed', 'Cancelled'] as const;
+export const orderStatusLabels = ['Open', 'Pending billing', 'Closed', 'Cancelled'] as const;
 export type OrderStatus = 0 | 1 | 2 | 3;
 export interface OrderItem {
   id: string; menuItemId: string; name: string; quantity: number; unitPrice: number; lineTotal: number;
@@ -21,6 +21,7 @@ export interface ActiveOrder {
   menuPreview?: Array<{ menuItemId: string; name: string; imagePath: string | null }>;
 }
 export interface Order extends ActiveOrder {
+  billRequestedAtUtc?: string | null; billRequestedBy?: string | null; billingStatus?: number | null; hasActivePayments?: boolean;
   notes: string | null; openedBy: string; updatedAtUtc: string | null;
   closedAtUtc: string | null; closedBy: string | null; cancelledAtUtc: string | null; cancelledBy: string | null;
   cancellationReason: string | null; items: OrderItem[]; rowVersion: string; sessionRowVersion: string; tickets?: OrderTicket[];
