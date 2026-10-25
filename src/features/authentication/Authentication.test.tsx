@@ -28,6 +28,47 @@ beforeEach(() => { vi.resetAllMocks(); sessionStorage.clear(); localStorage.clea
 afterEach(cleanup);
 
 describe('Authentication', () => {
+  it.each([false, true])('clears a deactivated session on focus (refresh cookie available: %s)', async (canRefresh) => {
+    if (canRefresh) {
+      tokenStore.setSession(token(), 'csrf-token');
+      vi.mocked(refreshSession).mockRejectedValue(new Error('Session revoked'));
+    } else tokenStore.set(token());
+    vi.mocked(apiClient.get).mockResolvedValue({ data: user });
+    renderApp();
+    expect(await screen.findByText('Can manage menu')).toBeInTheDocument();
+    const error = new AxiosError('Session no longer active');
+    Object.assign(error, { response: { status: 401 } });
+    vi.mocked(apiClient.get).mockRejectedValue(error);
+    act(() => window.dispatchEvent(new Event('focus')));
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    expect(tokenStore.get()).toBeNull();
+    if (canRefresh) expect(refreshSession).toHaveBeenCalledOnce();
+  });
+  it('reloads permissions on focus and access denial', async () => {
+    tokenStore.set(token());
+    vi.mocked(apiClient.get).mockResolvedValue({ data: user });
+    renderApp();
+    expect(await screen.findByText('Can manage menu')).toBeInTheDocument();
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { ...user, permissions: [] } });
+    act(() => window.dispatchEvent(new Event('focus')));
+    expect(await screen.findByText('Read only')).toBeInTheDocument();
+    vi.mocked(apiClient.get).mockResolvedValue({ data: user });
+    act(() => window.dispatchEvent(new Event('auth:forbidden')));
+    expect(await screen.findByText('Can manage menu')).toBeInTheDocument();
+  });
+  it('ignores an identity reload response that arrives after logout', async () => {
+    tokenStore.set(token());
+    vi.mocked(apiClient.get).mockResolvedValue({ data: user });
+    renderApp();
+    await screen.findByText('Can manage menu');
+    let resolve!: (response: { data: typeof user }) => void;
+    vi.mocked(apiClient.get).mockReturnValue(new Promise(done => { resolve = done; }));
+    act(() => window.dispatchEvent(new Event('focus')));
+    await userEvent.click(screen.getByRole('button', { name: 'Log out' }));
+    await act(async () => resolve({ data: user }));
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    expect(tokenStore.get()).toBeNull();
+  });
   it('protects routes and validates required fields without submitting', async () => {
     renderApp();
     await userEvent.click(await screen.findByRole('button', { name: 'Sign in' }));

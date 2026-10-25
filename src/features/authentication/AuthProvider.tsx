@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { isAxiosError } from 'axios';
 import { apiClient, logoutSession, refreshSession } from '../../services/apiClient';
 import { AuthContext } from './useAuth';
 import type { AuthUser, LoginResponse } from './authTypes';
@@ -16,6 +17,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setLoading] = useState(true);
   const [sessionVersion, setSessionVersion] = useState(0);
   const generation = useRef(0);
+  const identityRequest = useRef<Promise<void> | null>(null);
   const clearLocalSession = useCallback(() => {
     generation.current += 1;
     tokenStore.clear();
@@ -27,6 +29,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.sessionStorage.setItem('auth_notice', 'Your session expired. Please sign in again.');
     clearLocalSession();
   }, [clearLocalSession]);
+
+  useEffect(() => {
+    let disposed = false;
+    const reloadIdentity = () => {
+      if (!tokenStore.get() || identityRequest.current) return;
+      const current = generation.current;
+      identityRequest.current = apiClient.get<AuthUser>('/auth/me').then(({ data }) => {
+        if (!disposed && current === generation.current && tokenStore.get()) setUser(data);
+      }).catch(async (error: unknown) => {
+        if (disposed || current !== generation.current || !isAxiosError(error) || error.response?.status !== 401) return;
+        // /auth/me deliberately bypasses the shared session interceptor.
+        if (!tokenStore.getCsrf()) { expireLocalSession(); return; }
+        try {
+          const session = await refreshSession();
+          if (!disposed && current === generation.current) setUser(session.user);
+        } catch {
+          if (!disposed && current === generation.current) expireLocalSession();
+        }
+      })
+        .finally(() => { identityRequest.current = null; });
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') reloadIdentity(); };
+    window.addEventListener('focus', reloadIdentity);
+    window.addEventListener('auth:forbidden', reloadIdentity);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      disposed = true;
+      window.removeEventListener('focus', reloadIdentity);
+      window.removeEventListener('auth:forbidden', reloadIdentity);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [expireLocalSession]);
   const logout = useCallback(() => {
     void logoutSession();
     clearLocalSession();

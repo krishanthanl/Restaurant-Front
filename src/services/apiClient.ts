@@ -27,18 +27,21 @@ let refreshPromise: Promise<LoginResponse> | null = null;
 async function performRefresh(): Promise<LoginResponse> {
   const csrfToken = tokenStore.getCsrf();
   if (!csrfToken) throw new Error('No refresh session is available.');
-  try {
-    const { data } = await apiClient.post<LoginResponse>('/auth/refresh', null, { headers: { 'X-CSRF-Token': csrfToken } });
+  const accept = (data: LoginResponse) => {
+    if (tokenStore.getCsrf() !== csrfToken) throw new Error('Session changed during refresh.');
     tokenStore.setSession(data.accessToken, data.csrfToken);
     window.dispatchEvent(new CustomEvent('auth:session-refreshed', { detail: data.user }));
     return data;
+  };
+  try {
+    const { data } = await apiClient.post<LoginResponse>('/auth/refresh', null, { headers: { 'X-CSRF-Token': csrfToken } });
+    return accept(data);
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 409) {
       await new Promise((resolve) => window.setTimeout(resolve, 100));
+      if (tokenStore.getCsrf() !== csrfToken) throw new Error('Session changed during refresh.');
       const { data } = await apiClient.post<LoginResponse>('/auth/refresh', null, { headers: { 'X-CSRF-Token': csrfToken } });
-      tokenStore.setSession(data.accessToken, data.csrfToken);
-      window.dispatchEvent(new CustomEvent('auth:session-refreshed', { detail: data.user }));
-      return data;
+      return accept(data);
     }
     throw error;
   }
@@ -68,6 +71,8 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const config = error.config as RetryableConfig | undefined;
     const sessionEndpoint = config?.url?.startsWith('/auth/');
+    if (error.response?.status === 403 && !sessionEndpoint)
+      window.dispatchEvent(new Event('auth:forbidden'));
     if (error.response?.status === 401 && config && !config._authRetry && !sessionEndpoint && tokenStore.getCsrf()) {
       config._authRetry = true;
       try {
@@ -87,7 +92,7 @@ apiClient.interceptors.response.use(
 
 export function getApiErrorMessage(error: unknown): string {
   if (axios.isAxiosError<ApiProblem>(error)) {
-    if (error.response?.status === 403) return 'You do not have permission to perform this operation.';
+    if (error.response?.status === 403 && !error.response.data?.detail) return 'You do not have permission to perform this operation.';
     const problem = error.response?.data;
     const validationMessage = problem?.errors && Object.values(problem.errors).flat()[0];
     const message = validationMessage ?? problem?.detail ?? problem?.title ?? (error.code === 'ECONNABORTED' ? 'The request timed out.' : 'Could not connect to the server.');

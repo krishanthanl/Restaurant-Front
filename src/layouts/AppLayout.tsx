@@ -37,7 +37,6 @@ const masterNavigation: NavigationItem[] = [
   { label: 'Menu items', path: '/menu/items', icon: <RestaurantMenuRoundedIcon /> },
   { label: 'Categories', path: '/menu/categories', icon: <CategoryOutlinedIcon /> },
   { label: 'Kitchens', path: '/menu/kitchens', icon: <SoupKitchenOutlinedIcon /> },
-  { label: 'Access control', path: '/administration/access-control', icon: <AdminPanelSettingsOutlinedIcon />, permission: Permissions.usersManage },
   { label: 'Billing settings', path: '/billing/settings', icon: <ReceiptLongOutlinedIcon />, permission: Permissions.billingSettingsManage },
 ];
 
@@ -51,6 +50,7 @@ export function AppLayout() {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     'Daily actions': true,
     'Master data': true,
+    'Administration': true,
   });
   const navigationGroups = [
     {
@@ -63,6 +63,10 @@ export function AppLayout() {
       ],
     },
     { label: 'Master data', items: masterNavigation },
+    { label: 'Administration', items: user?.role === 'Admin' || user?.role === 'Manager' ? [
+      { label: 'Users', path: '/administration/users', icon: <AdminPanelSettingsOutlinedIcon />, permission: Permissions.usersManage },
+      ...(user.role === 'Admin' ? [{ label: 'Access control', path: '/administration/access-control', icon: <AdminPanelSettingsOutlinedIcon />, permission: Permissions.usersManage }] : []),
+    ] : [] },
   ].map((group) => ({
     ...group,
     items: group.items.filter((item) => !item.permission || hasPermission(item.permission)),
