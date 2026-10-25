@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, Box, Button, Card, CardContent, MenuItem, Pagination, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Avatar, Box, Button, Card, CardContent, MenuItem, Pagination, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import RestaurantMenuRoundedIcon from '@mui/icons-material/RestaurantMenuRounded';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../../../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/ContentState';
@@ -59,6 +60,20 @@ export function ActiveOrdersPage() {
             <Typography variant="h6">Order #{order.orderNumber}</Typography>
             <Typography>Tables: {order.tables.map(t => t.tableNumber).join(' + ')}</Typography>
             <Typography>{order.guestCount} guests · {order.quantityTotal} items · {orderStatusLabels[order.status]}</Typography>
+            {!!order.menuPreview?.length && <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" aria-label="Selected menu items">
+              {order.menuPreview.slice(0, 5).map(item => <Tooltip key={item.menuItemId} title={item.name}>
+                <Avatar variant="rounded" src={item.imagePath || undefined} alt={item.name}
+                  sx={{ width: 44, height: 44, bgcolor: 'primary.light', color: 'primary.main' }}
+                  slotProps={{ img: { loading: 'lazy' } }}>
+                  <RestaurantMenuRoundedIcon />
+                </Avatar>
+              </Tooltip>)}
+              {order.menuPreview.length > 5 && <Tooltip title={order.menuPreview.slice(5).map(item => item.name).join(', ')}>
+                <Avatar variant="rounded" sx={{ width: 44, height: 44, bgcolor: 'action.hover', color: 'text.secondary', fontSize: 14 }}>
+                  +{order.menuPreview.length - 5}
+                </Avatar>
+              </Tooltip>}
+            </Stack>}
             <Typography>{order.waiterName ?? 'Unassigned waiter'}</Typography>
             <Typography>Opened {new Date(order.openedAtUtc).toLocaleString()}</Typography>
             <Typography fontWeight={700}>Subtotal: {formatAmount(order.subtotal)}</Typography>

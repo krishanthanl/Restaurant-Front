@@ -18,6 +18,7 @@ export interface ActiveOrder {
   id: string; orderNumber: number; diningSessionId: string; status: OrderStatus;
   guestCount: number; waiterId: string | null; waiterName: string | null; areaId: string | null;
   tables: NonNullable<DiningSession['tables']>; subtotal: number; quantityTotal: number; openedAtUtc: string;
+  menuPreview?: Array<{ menuItemId: string; name: string; imagePath: string | null }>;
 }
 export interface Order extends ActiveOrder {
   notes: string | null; openedBy: string; updatedAtUtc: string | null;
