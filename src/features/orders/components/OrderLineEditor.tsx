@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material';
+import { Button, Card, CardContent, Chip, Stack, TextField, Typography } from '@mui/material';
 import type { OrderItem } from '../types/orderTypes';
 import { formatAmount } from '../types/orderTypes';
 
-export function OrderLineEditor({ item, editable, disabled, onSave, onRemove, onDirty }: {
-  item: OrderItem; editable: boolean; disabled: boolean;
-  onSave: (quantity: number, notes: string, saved: () => void) => void; onRemove: () => void; onDirty: (id: string, dirty: boolean) => void;
+// A line sent to the kitchen is fixed: it shows its ticket and can only be voided (onVoid is given when allowed).
+export function OrderLineEditor({ item, editable, disabled, ticketLabel, onSave, onRemove, onVoid, onDirty }: {
+  item: OrderItem; editable: boolean; disabled: boolean; ticketLabel?: string;
+  onSave: (quantity: number, notes: string, saved: () => void) => void; onRemove: () => void; onVoid?: () => void; onDirty: (id: string, dirty: boolean) => void;
 }) {
+  const sent = Boolean(item.kitchenTicketId);
+  const voided = Boolean(item.voidedAtUtc);
   const [quantity, setQuantity] = useState(String(item.quantity));
   const [notes, setNotes] = useState(item.notes ?? '');
   const [dirty, setDirty] = useState(false);
@@ -17,7 +20,8 @@ export function OrderLineEditor({ item, editable, disabled, onSave, onRemove, on
     <Typography fontWeight={700}>{item.name}</Typography>
     <Typography>{formatAmount(item.unitPrice)} each · {item.kitchenName}</Typography>
     <Typography>Line total: {formatAmount(item.lineTotal)}</Typography>
-    {editable ? <>
+    {sent && <Chip size="small" sx={{ alignSelf: 'flex-start' }} color={voided ? 'default' : 'info'} label={voided ? 'Voided' : `Sent · ${ticketLabel ?? item.kitchenName}`} />}
+    {editable && !sent ? <>
       <Stack direction="row" spacing={1} alignItems="center">
         <Button aria-label={`Decrease ${item.name}`} disabled={disabled || Number(quantity) <= 1} onClick={() => { setQuantity(String(Number(quantity) - 1)); setDirty(true); }}>−</Button>
         <TextField label={`Quantity for ${item.name}`} type="number" size="small" value={quantity} disabled={disabled}
@@ -29,6 +33,10 @@ export function OrderLineEditor({ item, editable, disabled, onSave, onRemove, on
         <Button disabled={disabled || !dirty || !valid} onClick={() => onSave(Number(quantity), notes, () => setDirty(false))}>Save item</Button>
         <Button color="error" disabled={disabled} onClick={onRemove}>Remove item</Button>
       </Stack>
-    </> : <Typography>{item.quantity} items{item.notes ? ` · ${item.notes}` : ''}</Typography>}
+    </> : <>
+      <Typography sx={{ textDecoration: voided ? 'line-through' : undefined }}>{item.quantity} items{item.notes ? ` · ${item.notes}` : ''}</Typography>
+      {voided && <Typography color="text.secondary">Voided: {item.voidReason}</Typography>}
+      {onVoid && sent && !voided && <Button color="error" sx={{ alignSelf: 'flex-start' }} disabled={disabled} onClick={onVoid}>Void item</Button>}
+    </>}
   </Stack></CardContent></Card>;
 }

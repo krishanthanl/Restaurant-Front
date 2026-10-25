@@ -23,3 +23,11 @@ it('reopens with the order version and operation identity', async () => {
   await orderApi.reopen('order', 'version', 'operation');
   expect(apiClient.post).toHaveBeenCalledWith('/orders/order/reopen', { rowVersion: 'version', operationId: 'operation' });
 });
+
+it('sends to the kitchen and voids with the order version, operation identity and reason', async () => {
+  vi.mocked(apiClient.post).mockResolvedValue({ data: { id: 'order' } });
+  await orderApi.sendToKitchen('order', 'version', 'operation');
+  expect(apiClient.post).toHaveBeenLastCalledWith('/orders/order/send-to-kitchen', { rowVersion: 'version', operationId: 'operation' });
+  await orderApi.voidItem('order', 'line', 'Dropped', 'version', 'operation-2');
+  expect(apiClient.post).toHaveBeenLastCalledWith('/orders/order/items/line/void', { rowVersion: 'version', operationId: 'operation-2', reason: 'Dropped' });
+});
