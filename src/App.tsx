@@ -18,6 +18,9 @@ import { ActiveOrdersPage } from './features/orders/pages/ActiveOrdersPage';
 import { OrderPage } from './features/orders/pages/OrderPage';
 import { OrderAccessRoute } from './features/orders/OrderAccessRoute';
 import { KitchenDisplayPage } from './features/kitchen/pages/KitchenDisplayPage';
+import { BillingQueuePage } from './features/billing/BillingQueuePage';
+import { BillingDetailPage } from './features/billing/BillingDetailPage';
+import { BillingSettingsPage } from './features/billing/BillingSettingsPage';
 
 export default function App() {
   return (
@@ -37,6 +40,13 @@ export default function App() {
           <Route path="menu/items" element={<MenuItemsPage />} />
           <Route path="menu/kitchens" element={<KitchenManagementPage />} />
           <Route path="forbidden" element={<ForbiddenPage />} />
+          <Route element={<PermissionRoute permission={Permissions.billingManage} />}>
+            <Route path="billing" element={<BillingQueuePage />} />
+            <Route path="billing/orders/:id" element={<BillingDetailPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission={Permissions.billingSettingsManage} />}>
+            <Route path="billing/settings" element={<BillingSettingsPage />} />
+          </Route>
           <Route element={<PermissionRoute permission={Permissions.menuManage} />}>
             <Route path="menu/items/new" element={<MenuItemFormPage />} />
             <Route path="menu/items/:id/edit" element={<MenuItemFormPage />} />

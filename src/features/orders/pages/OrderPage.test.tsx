@@ -61,12 +61,12 @@ it('disables mutations while an add is in flight and submits once', async () => 
 });
 
 it('shows frozen order details to a cashier and explains manual closure', async () => {
-  vi.mocked(orderApi.get).mockResolvedValue({ ...sentOrder, status: 1, tickets: [{ ...sentOrder.tickets![0], status: 4 }] });
+  vi.mocked(orderApi.get).mockResolvedValue({ ...sentOrder, status: 1, billingStatus: 2, tickets: [{ ...sentOrder.tickets![0], status: 4 }] });
   vi.mocked(useAuth).mockReturnValue({ hasPermission: (p: string) => p === 'billing.manage' } as unknown as ReturnType<typeof useAuth>);
-  show(); await screen.findByText('Ready to bill');
+  show(); await screen.findByText('Pending billing');
   expect(screen.queryByRole('button', { name: 'Save item' })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Close order and visit' }));
-  expect(screen.getByText(/No payment will be recorded/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Close visit' }));
+  expect(screen.getByText(/Payment is complete/)).toBeInTheDocument();
 });
 
 it('handles empty menus and load errors', async () => {
@@ -77,7 +77,7 @@ it('handles empty menus and load errors', async () => {
 it.each(['Quantity for Soup', 'Notes for Soup'])('blocks readiness while %s contains unsaved changes', async label => {
   show(); await screen.findByLabelText(label);
   fireEvent.change(screen.getByLabelText(label), { target: { value: label.startsWith('Quantity') ? '3' : 'Peanut allergy' } });
-  expect(screen.getByRole('button', { name: 'Ready to bill' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Request bill' })).toBeDisabled();
   expect(orderApi.ready).not.toHaveBeenCalled();
 });
 
@@ -90,7 +90,7 @@ it('keeps line drafts and the readiness guard when retrying a failed menu search
   fireEvent.click(screen.getByRole('button', { name: /retry/i }));
   await screen.findByRole('button', { name: 'Add Soup' }, { timeout: 5000 });
   expect(screen.getByLabelText('Notes for Soup')).toHaveValue('Peanut allergy');
-  expect(screen.getByRole('button', { name: 'Ready to bill' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Request bill' })).toBeDisabled();
 });
 
 it('shows the saved order after an add without reloading the order or menu', async () => {
@@ -115,7 +115,7 @@ it('does not offer reopening without the submit permission', async () => {
   vi.mocked(orderApi.get).mockResolvedValue({ ...base, status: 1 });
   vi.mocked(useAuth).mockReturnValue({ hasPermission: (permission: string) => permission === 'billing.manage' } as unknown as ReturnType<typeof useAuth>);
   show();
-  await screen.findByRole('button', { name: 'Close order and visit' });
+  await screen.findByRole('button', { name: 'Close visit' });
   expect(screen.queryByRole('button', { name: 'Reopen to add items' })).not.toBeInTheDocument();
 });
 
@@ -128,34 +128,34 @@ const sentOrder: Order = {
 it('sends new items to the kitchen before the bill can be requested', async () => {
   vi.mocked(orderApi.sendToKitchen).mockResolvedValue({ ...sentOrder, rowVersion: 'v2' });
   show();
-  expect(await screen.findByRole('button', { name: 'Ready to bill' })).toBeDisabled();
+  expect(await screen.findByRole('button', { name: 'Request bill' })).toBeDisabled();
   expect(screen.getByText('Send new items to the kitchen before requesting the bill.')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Send to kitchen (1)' }));
   await waitFor(() => expect(orderApi.sendToKitchen).toHaveBeenCalledWith('o1', 'v1', expect.any(String)));
   expect(await screen.findByText('Sent · Hot kitchen · Preparing')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Send to kitchen/ })).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Quantity for Soup')).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Ready to bill' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Request bill' })).toBeDisabled();
 });
 
 it.each([0, 1, 2, 3] as const)('blocks billing and explains unserved ticket status %s', async status => {
   vi.mocked(orderApi.get).mockResolvedValue({ ...sentOrder, tickets: [{ ...sentOrder.tickets![0], status }] });
   show();
-  expect(await screen.findByRole('button', { name: 'Ready to bill' })).toBeDisabled();
+  expect(await screen.findByRole('button', { name: 'Request bill' })).toBeDisabled();
   expect(screen.getByText('1 kitchen ticket still needs to be marked served before billing or closing.')).toBeInTheDocument();
 });
 
 it('blocks closing an existing ready-to-bill order with unserved food', async () => {
   vi.mocked(orderApi.get).mockResolvedValue({ ...sentOrder, status: 1 });
   show();
-  expect(await screen.findByRole('button', { name: 'Close order and visit' })).toBeDisabled();
+  expect(await screen.findByRole('button', { name: 'Close visit' })).toBeDisabled();
   expect(orderApi.end).not.toHaveBeenCalled();
 });
 
 it('allows billing once the ticket is marked served', async () => {
   vi.mocked(orderApi.get).mockResolvedValue({ ...sentOrder, tickets: [{ ...sentOrder.tickets![0], status: 4 }] });
   show();
-  expect(await screen.findByRole('button', { name: 'Ready to bill' })).toBeEnabled();
+  expect(await screen.findByRole('button', { name: 'Request bill' })).toBeEnabled();
 });
 
 it('voids a sent item with a reason when the user may', async () => {

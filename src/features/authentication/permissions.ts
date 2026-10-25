@@ -7,6 +7,7 @@ export const Permissions = {
   ordersVoidAfterKitchen: 'orders.void-after-kitchen',
   kitchenManage: 'kitchen.manage',
   billingManage: 'billing.manage',
+  billingSettingsManage: 'billing.settings.manage',
   paymentsRecord: 'payments.record',
   paymentsRefund: 'payments.refund',
   reportsView: 'reports.view',
