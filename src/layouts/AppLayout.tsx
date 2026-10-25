@@ -3,7 +3,7 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import { useState, type ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  AppBar, Avatar, Box, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon,
+  AppBar, Avatar, Box, Collapse, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon,
   ListItemText, Toolbar, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import CategoryOutlinedIcon from '@mui/icons-material/CategoryOutlined';
@@ -14,6 +14,8 @@ import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneR
 import RoomOutlinedIcon from '@mui/icons-material/RoomOutlined';
 import SoupKitchenOutlinedIcon from '@mui/icons-material/SoupKitchenOutlined';
 import LocalDiningOutlinedIcon from '@mui/icons-material/LocalDiningOutlined';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 
 import TableRestaurantOutlinedIcon from '@mui/icons-material/TableRestaurantOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
@@ -43,6 +45,10 @@ export function AppLayout() {
   const theme = useTheme();
   const desktop = useMediaQuery(theme.breakpoints.up('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    'Daily actions': true,
+    'Master data': true,
+  });
   const navigationGroups = [
     {
       label: 'Daily actions',
@@ -72,19 +78,31 @@ export function AppLayout() {
       </Box>
       {navigationGroups.map((group) => (
         <Box component="section" aria-label={group.label} key={group.label} sx={{ mb: 2 }}>
-          <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1 }}>{group.label}</Typography>
+          <ListItemButton component="button" type="button"
+            aria-expanded={expandedGroups[group.label] ?? false}
+            aria-controls={`navigation-${group.label.replaceAll(' ', '-').toLowerCase()}`}
+            onClick={() => setExpandedGroups((current) => ({ ...current, [group.label]: !current[group.label] }))}
+            sx={{ width: '100%', borderRadius: 2.5, mb: 0.75, px: 1.5, color: 'text.secondary' }}>
+            <ListItemIcon sx={{ minWidth: 28, color: 'inherit' }}>
+              {expandedGroups[group.label] ? <ExpandMoreRoundedIcon /> : <ChevronRightRoundedIcon />}
+            </ListItemIcon>
+            <ListItemText primary={group.label} primaryTypographyProps={{ fontWeight: 700, variant: 'body2' }} />
+          </ListItemButton>
+          <Collapse in={expandedGroups[group.label] ?? false}
+            id={`navigation-${group.label.replaceAll(' ', '-').toLowerCase()}`} unmountOnExit>
           <List aria-label={group.label} sx={{ p: 0 }}>
             {group.items.map((item) => {
               const selected = location.pathname.startsWith(item.path);
               return (
                 <ListItemButton key={item.path} selected={selected} onClick={() => { navigate(item.path); setMobileOpen(false); }}
-                  sx={{ borderRadius: 2.5, mb: 0.75, '&.Mui-selected': { bgcolor: 'primary.light', color: 'primary.dark' } }}>
+                  sx={{ pl: 3, borderRadius: 2.5, mb: 0.75, '&.Mui-selected': { bgcolor: 'primary.light', color: 'primary.dark' } }}>
                   <ListItemIcon sx={{ minWidth: 40, color: selected ? 'primary.main' : 'text.secondary' }}>{item.icon}</ListItemIcon>
                   <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: selected ? 700 : 500 }} />
                 </ListItemButton>
               );
             })}
           </List>
+          </Collapse>
         </Box>
       ))}
       <Box sx={{ mt: 'auto', p: 1.5, borderRadius: 3, bgcolor: 'primary.light' }}>
