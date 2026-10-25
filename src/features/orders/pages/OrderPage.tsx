@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Pagination, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Avatar, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Pagination, Stack, TextField, Typography } from '@mui/material';
+import RestaurantMenuRoundedIcon from '@mui/icons-material/RestaurantMenuRounded';
 import { Link, useParams } from 'react-router-dom';
 import { PageHeader } from '../../../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/ContentState';
@@ -120,7 +121,13 @@ export function OrderPage() {
           </TextField>
           {menuLoading ? <LoadingState label="Loading menu…" /> : menuError ? <ErrorState message={menuError} onRetry={() => setMenuRevision(x => x + 1)} /> : !menu?.items.length ? <EmptyState title="No menu items" description="Choose another category or search term." /> : <>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2 }}>
-              {menu.items.map(item => <Card key={item.id}><CardContent><Stack spacing={1}>
+              {menu.items.map(item => <Card key={item.id}>
+                <Avatar variant="square" src={item.imagePath || undefined} alt={item.name}
+                  sx={{ width: '100%', height: 160, bgcolor: 'primary.light', color: 'primary.main' }}
+                  slotProps={{ img: { loading: 'lazy' } }}>
+                  <RestaurantMenuRoundedIcon sx={{ fontSize: 48 }} />
+                </Avatar>
+                <CardContent><Stack spacing={1}>
                 <Typography variant="h6">{item.name}</Typography><Typography>{item.description}</Typography>
                 <Typography>{formatAmount(item.price)}</Typography><Typography variant="caption">{item.kitchenName}</Typography>
                 {!item.isOrderable && <Typography color="error">Currently unavailable</Typography>}
