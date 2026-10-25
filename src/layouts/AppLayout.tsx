@@ -20,14 +20,19 @@ import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettin
 import { Permissions } from '../features/authentication/permissions';
 
 const drawerWidth = 252;
-const navigation: Array<{ label: string; path: string; icon: ReactNode; permission?: string }> = [
+type NavigationItem = { label: string; path: string; icon: ReactNode; permission?: string };
+
+const dailyNavigation: NavigationItem[] = [
   { label: 'Table dashboard', path: '/restaurant/table-dashboard', icon: <TableRestaurantOutlinedIcon /> },
+  { label: 'Kitchen display', path: '/kitchen/display', icon: <LocalDiningOutlinedIcon />, permission: Permissions.kitchenManage },
+];
+
+const masterNavigation: NavigationItem[] = [
   { label: 'Tables', path: '/restaurant/tables', icon: <TableRestaurantOutlinedIcon /> },
   { label: 'Areas', path: '/restaurant/areas', icon: <RoomOutlinedIcon /> },
   { label: 'Menu items', path: '/menu/items', icon: <RestaurantMenuRoundedIcon /> },
   { label: 'Categories', path: '/menu/categories', icon: <CategoryOutlinedIcon /> },
   { label: 'Kitchens', path: '/menu/kitchens', icon: <SoupKitchenOutlinedIcon /> },
-  { label: 'Kitchen display', path: '/kitchen/display', icon: <LocalDiningOutlinedIcon />, permission: Permissions.kitchenManage },
   { label: 'Access control', path: '/administration/access-control', icon: <AdminPanelSettingsOutlinedIcon />, permission: Permissions.usersManage },
 ];
 
@@ -38,6 +43,21 @@ export function AppLayout() {
   const theme = useTheme();
   const desktop = useMediaQuery(theme.breakpoints.up('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
+  const navigationGroups = [
+    {
+      label: 'Daily actions',
+      items: [
+        dailyNavigation[0],
+        ...(hasPermission(Permissions.ordersCreate) || hasPermission(Permissions.billingManage)
+          ? [{ label: 'Active orders', path: '/orders/active', icon: <RestaurantMenuRoundedIcon />, permission: undefined }] : []),
+        ...dailyNavigation.slice(1),
+      ],
+    },
+    { label: 'Master data', items: masterNavigation },
+  ].map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.permission || hasPermission(item.permission)),
+  })).filter((group) => group.items.length > 0);
 
   const drawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', px: 2, py: 2.5 }}>
@@ -50,23 +70,26 @@ export function AppLayout() {
           <Typography variant="body2" color="text.secondary">Station</Typography>
         </Box>
       </Box>
-      <Typography variant="overline" color="text.secondary" sx={{ px: 1.5, mb: 1 }}>Management</Typography>
-      <List sx={{ p: 0 }}>
-        {[...navigation, ...(hasPermission(Permissions.ordersCreate) || hasPermission(Permissions.billingManage)
-          ? [{ label: 'Active orders', path: '/orders/active', icon: <RestaurantMenuRoundedIcon />, permission: undefined }] : [])].filter((item) => !item.permission || hasPermission(item.permission)).map((item) => {
-          const selected = location.pathname.startsWith(item.path);
-          return (
-            <ListItemButton key={item.path} selected={selected} onClick={() => { navigate(item.path); setMobileOpen(false); }}
-              sx={{ borderRadius: 2.5, mb: 0.75, '&.Mui-selected': { bgcolor: 'primary.light', color: 'primary.dark' } }}>
-              <ListItemIcon sx={{ minWidth: 40, color: selected ? 'primary.main' : 'text.secondary' }}>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: selected ? 700 : 500 }} />
-            </ListItemButton>
-          );
-        })}
-      </List>
+      {navigationGroups.map((group) => (
+        <Box component="section" aria-label={group.label} key={group.label} sx={{ mb: 2 }}>
+          <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1 }}>{group.label}</Typography>
+          <List aria-label={group.label} sx={{ p: 0 }}>
+            {group.items.map((item) => {
+              const selected = location.pathname.startsWith(item.path);
+              return (
+                <ListItemButton key={item.path} selected={selected} onClick={() => { navigate(item.path); setMobileOpen(false); }}
+                  sx={{ borderRadius: 2.5, mb: 0.75, '&.Mui-selected': { bgcolor: 'primary.light', color: 'primary.dark' } }}>
+                  <ListItemIcon sx={{ minWidth: 40, color: selected ? 'primary.main' : 'text.secondary' }}>{item.icon}</ListItemIcon>
+                  <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: selected ? 700 : 500 }} />
+                </ListItemButton>
+              );
+            })}
+          </List>
+        </Box>
+      ))}
       <Box sx={{ mt: 'auto', p: 1.5, borderRadius: 3, bgcolor: 'primary.light' }}>
-        <Typography fontWeight={700} variant="body2">Menu workspace</Typography>
-        <Typography variant="caption" color="text.secondary">Manage what your guests can order.</Typography>
+        <Typography fontWeight={700} variant="body2">Restaurant workspace</Typography>
+        <Typography variant="caption" color="text.secondary">Daily service and restaurant setup.</Typography>
       </Box>
     </Box>
   );
@@ -78,7 +101,7 @@ export function AppLayout() {
           {!desktop && <IconButton onClick={() => setMobileOpen(true)} aria-label="Open navigation"><MenuRoundedIcon /></IconButton>}
           <Box sx={{ flex: 1 }}>
             <Typography fontWeight={750}>Restaurant Management</Typography>
-            <Typography variant="caption" color="text.secondary">Menu administration</Typography>
+            <Typography variant="caption" color="text.secondary">Daily service and master data</Typography>
           </Box>
           <Tooltip title="Notifications"><IconButton><NotificationsNoneRoundedIcon /></IconButton></Tooltip>
           <Divider orientation="vertical" flexItem sx={{ my: 1.5 }} />
