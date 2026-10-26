@@ -8,7 +8,7 @@ import { getApiErrorMessage } from '../../services/apiClient';
 import { useAuth } from '../authentication/useAuth';
 import { Permissions } from '../authentication/permissions';
 import { orderApi } from '../orders/api/orderApi';
-import { formatAmount, type Order } from '../orders/types/orderTypes';
+import { checkName, formatAmount, type Order } from '../orders/types/orderTypes';
 import { billingApi } from './billingApi';
 import { paymentMethods, type Bill } from './billingTypes';
 import { BillReceipt } from './BillReceipt';
@@ -39,14 +39,14 @@ export function BillingDetailPage() {
   if (loading) return <LoadingState label="Loading billing details…" />;
   if (error || !order) return <ErrorState message={error ?? 'Order was not found.'} onRetry={() => void mutation.refresh()} />;
   return <>
-    <PageHeader eyebrow="Cashier" title={`Billing · Order #${order.orderNumber}`} description="Record externally confirmed payments. The table stays occupied until the visit is closed."
+    <PageHeader eyebrow="Cashier" title={`Billing · ${checkName(order)}`} description="Record externally confirmed payments. The table stays occupied until the visit is closed."
       action={<Button component={Link} to="/billing">Billing queue</Button>} />
     {mutation.error && <Alert severity="error" sx={{ mb: 2 }}>{mutation.error}</Alert>}
     {mutation.refreshRequired && <Alert severity="warning">Refresh billing before continuing.</Alert>}
     <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
       <Button disabled={mutation.saving} onClick={() => void mutation.refresh()}>Refresh billing</Button>
       {mutation.retryPending && <Button disabled={mutation.saving} onClick={() => void mutation.retry()}>Retry pending action</Button>}
-      <Button component={Link} to={`/orders/${order.id}`} disabled={mutation.blocked}>View order / close visit</Button>
+      <Button component={Link} to={`/orders/${order.id}`} disabled={mutation.blocked}>View order / close check</Button>
       {bill && <Button disabled={mutation.blocked} onClick={() => window.print()}>{bill.status === 2 ? 'Print receipt' : 'Print bill'}</Button>}
     </Stack>
     {!bill ? <Stack spacing={2}>
@@ -61,7 +61,7 @@ export function BillingDetailPage() {
     </Stack> : <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1fr) 340px' }, gap: 3 }}>
       <BillReceipt bill={bill} />
       <Stack spacing={2}>
-        {bill.status === 2 && <Alert severity="success">Paid. {bill.visitClosed ? 'This visit is closed.' : 'Keep the table occupied until the guests leave, then close the visit.'}</Alert>}
+        {bill.status === 2 && <Alert severity="success">Paid. {bill.visitClosed ? 'This check is closed.' : 'Close the check from the order once the guests are done; the last check closed ends the visit.'}</Alert>}
         {!bill.visitClosed && bill.status < 2 && hasPermission(Permissions.paymentsRecord) && <Box component="form" onSubmit={e => { e.preventDefault(); pay(); }}>
           <Stack spacing={2}>
             <Typography variant="h6">Record payment</Typography>

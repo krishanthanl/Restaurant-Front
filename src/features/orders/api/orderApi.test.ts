@@ -18,6 +18,21 @@ it('uses the supplied operation identity unchanged when retrying', async () => {
   expect(vi.mocked(apiClient.post).mock.calls[0]).toEqual(vi.mocked(apiClient.post).mock.calls[1]);
 });
 
+it('lists a session\'s checks and creates or relabels a check', async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ data: [] });
+  vi.mocked(apiClient.post).mockResolvedValue({ data: { id: 'order' } });
+  vi.mocked(apiClient.put).mockResolvedValue({ data: { id: 'order' } });
+  const signal = new AbortController().signal;
+  await orderApi.listForSession('session', signal);
+  expect(apiClient.get).toHaveBeenCalledWith('/dining-sessions/session/orders', { signal });
+  await orderApi.create('session', 'session-version', 'operation', 'Seat 2');
+  expect(apiClient.post).toHaveBeenLastCalledWith('/orders', { diningSessionId: 'session', sessionRowVersion: 'session-version', operationId: 'operation', checkLabel: 'Seat 2' });
+  await orderApi.create('session', 'session-version', 'operation-2', '');
+  expect(apiClient.post).toHaveBeenLastCalledWith('/orders', { diningSessionId: 'session', sessionRowVersion: 'session-version', operationId: 'operation-2', checkLabel: null });
+  await orderApi.setCheckLabel('order', null, 'version', 'operation-3');
+  expect(apiClient.put).toHaveBeenCalledWith('/orders/order/check-label', { checkLabel: null, rowVersion: 'version', operationId: 'operation-3' });
+});
+
 it('reopens with the order version and operation identity', async () => {
   vi.mocked(apiClient.post).mockResolvedValue({ data: { id: 'order' } });
   await orderApi.reopen('order', 'version', 'operation');

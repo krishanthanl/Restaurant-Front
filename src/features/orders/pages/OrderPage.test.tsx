@@ -9,7 +9,7 @@ import type { Order } from '../types/orderTypes';
 import type { MenuItem } from '../../menu/types/menuTypes';
 import { kitchenTicketApi } from '../../kitchen/api/kitchenTicketApi';
 
-vi.mock('../api/orderApi', () => ({ orderApi: { get: vi.fn(), add: vi.fn(), updateItem: vi.fn(), notes: vi.fn(), ready: vi.fn(), end: vi.fn(), remove: vi.fn(), reopen: vi.fn(), sendToKitchen: vi.fn(), voidItem: vi.fn() } }));
+vi.mock('../api/orderApi', () => ({ orderApi: { get: vi.fn(), add: vi.fn(), updateItem: vi.fn(), notes: vi.fn(), ready: vi.fn(), end: vi.fn(), remove: vi.fn(), reopen: vi.fn(), sendToKitchen: vi.fn(), voidItem: vi.fn(), setCheckLabel: vi.fn() } }));
 vi.mock('../../kitchen/api/kitchenTicketApi', () => ({ kitchenTicketApi: { advance: vi.fn() } }));
 vi.mock('../../menu/api/menuApi', () => ({ menuApi: { getCategories: vi.fn(), getItems: vi.fn() } }));
 vi.mock('../../authentication/useAuth', () => ({ useAuth: vi.fn() }));
@@ -67,6 +67,46 @@ it('shows frozen order details to a cashier and explains manual closure', async 
   expect(screen.queryByRole('button', { name: 'Save item' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Close visit' }));
   expect(screen.getByText(/Payment is complete/)).toBeInTheDocument();
+});
+
+it('closes only this check while the visit has other open checks', async () => {
+  vi.mocked(orderApi.get).mockResolvedValue({ ...sentOrder, status: 1, billingStatus: 2, checkLabel: 'Seat 2', otherActiveCheckCount: 1, tickets: [{ ...sentOrder.tickets![0], status: 4 }] });
+  vi.mocked(orderApi.end).mockResolvedValue({ ...sentOrder, status: 2 });
+  show();
+  expect(await screen.findByRole('heading', { name: 'Seat 2 · Order #42' })).toBeInTheDocument();
+  expect(screen.getByText(/1 other open check\./)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Close visit' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Close check' }));
+  expect(screen.getByText(/Only this check ends/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+  await waitFor(() => expect(orderApi.end).toHaveBeenCalledWith('o1', 'close', 'v1', 's1v', expect.any(String), undefined));
+});
+
+it('warns that closing the last check ends the visit', async () => {
+  vi.mocked(orderApi.get).mockResolvedValue({ ...sentOrder, status: 1, billingStatus: 2, otherActiveCheckCount: 0, tickets: [{ ...sentOrder.tickets![0], status: 4 }] });
+  show();
+  fireEvent.click(await screen.findByRole('button', { name: 'Close visit' }));
+  expect(screen.getByText(/This is the last open check/)).toBeInTheDocument();
+});
+
+it('renames the check, sending a blank label as null', async () => {
+  vi.mocked(orderApi.get).mockResolvedValue({ ...base, checkLabel: 'Seat 1', separateChecksEnabled: true });
+  vi.mocked(orderApi.setCheckLabel).mockResolvedValue({ ...base, checkLabel: null, rowVersion: 'v2', separateChecksEnabled: true });
+  show();
+  const field = await screen.findByLabelText('Check label');
+  expect(field).toHaveValue('Seat 1');
+  fireEvent.change(field, { target: { value: '   ' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save label' }));
+  await waitFor(() => expect(orderApi.setCheckLabel).toHaveBeenCalledWith('o1', null, 'v1', expect.any(String)));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Save label' })).toBeDisabled());
+});
+
+it('hides check labelling when separate checks are turned off', async () => {
+  vi.mocked(orderApi.get).mockResolvedValue({ ...base, checkLabel: 'Seat 1', separateChecksEnabled: false });
+  show();
+  expect(await screen.findByText('Check: Seat 1')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Check label')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Save label' })).not.toBeInTheDocument();
 });
 
 it('handles empty menus and load errors', async () => {

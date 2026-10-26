@@ -12,4 +12,5 @@ export const Permissions = {
   paymentsRefund: 'payments.refund',
   reportsView: 'reports.view',
   usersManage: 'users.manage',
+  settingsManage: 'settings.manage',
 } as const;

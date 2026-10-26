@@ -7,7 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/ContentSt
 import { getApiErrorMessage } from '../../services/apiClient';
 import { areaApi } from '../areas/api/areaApi';
 import type { Area } from '../areas/types/areaTypes';
-import { formatAmount } from '../orders/types/orderTypes';
+import { checkName, formatAmount } from '../orders/types/orderTypes';
 import { billingApi } from './billingApi';
 import { billStatusLabels, type BillingQueuePage as Queue } from './billingTypes';
 
@@ -58,7 +58,7 @@ export function BillingQueuePage() {
       <EmptyState title={paid ? 'No paid bills' : 'No orders pending billing'} description={paid ? 'Paid bills will appear here.' : 'Orders appear here when a waiter requests the bill.'} /> : <>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' }, gap: 2 }}>
           {data.items.map(order => <Card key={order.orderId}><CardContent><Stack spacing={1}>
-            <Stack direction="row" justifyContent="space-between"><Typography variant="h6">Order #{order.orderNumber}</Typography><Chip size="small" label={order.billingStatus == null ? 'Bill not generated' : billStatusLabels[order.billingStatus]} /></Stack>
+            <Stack direction="row" justifyContent="space-between"><Typography variant="h6">{checkName(order)}</Typography><Chip size="small" label={order.billingStatus == null ? 'Bill not generated' : billStatusLabels[order.billingStatus]} /></Stack>
             <Typography>Tables {order.tables.map(table => table.tableNumber).join(' + ')}</Typography>
             <Typography>{order.waiterName ?? 'Unassigned waiter'}</Typography>
             <Typography variant="body2" color="text.secondary">{order.requestedAtUtc ? `Requested ${new Date(order.requestedAtUtc).toLocaleString()}${paid ? '' : ` · waiting ${Math.max(0, Math.floor((now - new Date(order.requestedAtUtc).getTime()) / 60000))} min`}` : 'Earlier request'}</Typography>
@@ -68,7 +68,7 @@ export function BillingQueuePage() {
             </Stack>
             <Typography>Subtotal: {order.currency ?? 'Rs.'} {formatAmount(order.subtotal)}</Typography>
             {order.grandTotal != null && <Typography fontWeight={700}>Total: {order.currency} {formatAmount(order.grandTotal)} · Balance: {formatAmount(order.balance ?? 0)}</Typography>}
-            {paid && <Typography color="success.main">{order.visitClosed ? 'Visit closed' : 'Paid · table remains occupied until guests leave'}</Typography>}
+            {paid && <Typography color="success.main">{order.visitClosed ? 'Check closed' : 'Paid · close the check once the guests are done'}</Typography>}
             <Button component={Link} to={`/billing/orders/${order.orderId}`} variant="contained">{paid ? 'View receipt' : 'Open billing'}</Button>
           </Stack></CardContent></Card>)}
         </Box>

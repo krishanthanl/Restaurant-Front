@@ -6,7 +6,7 @@ import { PageHeader } from '../../../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/ContentState';
 import { getApiErrorMessage } from '../../../services/apiClient';
 import { orderApi } from '../api/orderApi';
-import { formatAmount, orderStatusLabels, type OrderPage } from '../types/orderTypes';
+import { checkName, formatAmount, orderStatusLabels, type OrderPage } from '../types/orderTypes';
 import { areaApi } from '../../areas/api/areaApi';
 import type { Area } from '../../areas/types/areaTypes';
 import { useAuth } from '../../authentication/useAuth';
@@ -57,7 +57,7 @@ export function ActiveOrdersPage() {
       <EmptyState title="No active orders" description="Start an order from an active dining session on the table dashboard, or change your filters." /> : <>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' }, gap: 2 }}>
           {result.items.map(order => <Card key={order.id}><CardContent><Stack spacing={1}>
-            <Typography variant="h6">Order #{order.orderNumber}</Typography>
+            <Typography variant="h6">{checkName(order)}</Typography>
             <Typography>Tables: {order.tables.map(t => t.tableNumber).join(' + ')}</Typography>
             <Typography>{order.guestCount} guests · {order.quantityTotal} items · {orderStatusLabels[order.status]}</Typography>
             {!!order.menuPreview?.length && <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" aria-label="Selected menu items">

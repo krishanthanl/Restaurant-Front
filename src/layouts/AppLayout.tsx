@@ -20,6 +20,8 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 
 import TableRestaurantOutlinedIcon from '@mui/icons-material/TableRestaurantOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import { RestaurantSettingsProvider } from '../features/settings/RestaurantSettingsProvider';
 import { Permissions } from '../features/authentication/permissions';
 
 const drawerWidth = 252;
@@ -63,10 +65,14 @@ export function AppLayout() {
       ],
     },
     { label: 'Master data', items: masterNavigation },
-    { label: 'Administration', items: user?.role === 'Admin' || user?.role === 'Manager' ? [
-      { label: 'Users', path: '/administration/users', icon: <AdminPanelSettingsOutlinedIcon />, permission: Permissions.usersManage },
-      ...(user.role === 'Admin' ? [{ label: 'Access control', path: '/administration/access-control', icon: <AdminPanelSettingsOutlinedIcon />, permission: Permissions.usersManage }] : []),
-    ] : [] },
+    // Configurations follows its permission alone, so a custom role holding settings.manage sees it too.
+    { label: 'Administration', items: [
+      ...(user?.role === 'Admin' || user?.role === 'Manager' ? [
+        { label: 'Users', path: '/administration/users', icon: <AdminPanelSettingsOutlinedIcon />, permission: Permissions.usersManage },
+        ...(user.role === 'Admin' ? [{ label: 'Access control', path: '/administration/access-control', icon: <AdminPanelSettingsOutlinedIcon />, permission: Permissions.usersManage }] : []),
+      ] : []),
+      { label: 'Configurations', path: '/administration/configurations', icon: <SettingsOutlinedIcon />, permission: Permissions.settingsManage },
+    ] },
   ].map((group) => ({
     ...group,
     items: group.items.filter((item) => !item.permission || hasPermission(item.permission)),
@@ -147,7 +153,7 @@ export function AppLayout() {
         </Drawer>
       </Box>
       <Box component="main" sx={{ flex: 1, minWidth: 0, pt: 10, px: { xs: 2, sm: 3, lg: 4 }, pb: 5 }}>
-        <Outlet />
+        <RestaurantSettingsProvider><Outlet /></RestaurantSettingsProvider>
       </Box>
     </Box>
   );

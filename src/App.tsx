@@ -22,6 +22,7 @@ import { KitchenDisplayPage } from './features/kitchen/pages/KitchenDisplayPage'
 import { BillingQueuePage } from './features/billing/BillingQueuePage';
 import { BillingDetailPage } from './features/billing/BillingDetailPage';
 import { BillingSettingsPage } from './features/billing/BillingSettingsPage';
+import { ConfigurationsPage } from './features/settings/pages/ConfigurationsPage';
 
 export default function App() {
   return (
@@ -60,6 +61,9 @@ export default function App() {
           </Route>
           <Route element={<PermissionRoute permission={Permissions.usersManage} roles={['Admin']} />}>
             <Route path="administration/access-control" element={<AccessControlPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission={Permissions.settingsManage} />}>
+            <Route path="administration/configurations" element={<ConfigurationsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/menu/items" replace />} />
         </Route>

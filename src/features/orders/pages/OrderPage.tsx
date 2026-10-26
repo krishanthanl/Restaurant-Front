@@ -10,7 +10,7 @@ import { Permissions } from '../../authentication/permissions';
 import { menuApi } from '../../menu/api/menuApi';
 import type { MenuCategory, MenuItem as MenuItemModel, PagedResponse } from '../../menu/types/menuTypes';
 import { orderApi } from '../api/orderApi';
-import { formatAmount, orderStatusLabels, type Order } from '../types/orderTypes';
+import { checkLabelMaxLength, formatAmount, orderStatusLabels, type Order } from '../types/orderTypes';
 import { useOrderMutation } from '../hooks/useOrderMutation';
 import { kitchenTicketApi } from '../../kitchen/api/kitchenTicketApi';
 import { KitchenTicketStatus, kitchenTicketStatusLabels } from '../../kitchen/types/kitchenTicketTypes';
@@ -36,6 +36,8 @@ export function OrderPage() {
   const menuRequest = useRef<AbortController | null>(null);
   const [notes, setNotes] = useState('');
   const [notesDirty, setNotesDirty] = useState(false);
+  const [label, setLabel] = useState('');
+  const [labelDirty, setLabelDirty] = useState(false);
   const [dirtyLines, setDirtyLines] = useState<Set<string>>(() => new Set());
   const lineDirty = useCallback((lineId: string, dirty: boolean) => {
     setDirtyLines(previous => {
@@ -81,6 +83,9 @@ export function OrderPage() {
     if (!notesDirty && order) setNotes(order.notes ?? '');
   }, [order, notesDirty]);
   useEffect(() => {
+    if (!labelDirty && order) setLabel(order.checkLabel ?? '');
+  }, [order, labelDirty]);
+  useEffect(() => {
     const controller = new AbortController(); setMenuLoading(true); setMenuError(null);
     menuRequest.current = controller;
     const timer = window.setTimeout(() => {
@@ -108,12 +113,19 @@ export function OrderPage() {
     return ticket ? `${ticket.kitchenName} · ${kitchenTicketStatusLabels[ticket.status]}` : undefined;
   };
   if (error || !order) return <ErrorState message={error ?? 'Order was not found.'} onRetry={() => setRevision(x => x + 1)} />;
+  // With separate checks only the last active check ends the visit; the server makes the final call.
+  const endsVisit = (order.otherActiveCheckCount ?? 0) === 0;
+  const canRelabel = hasPermission(Permissions.ordersCreate) && order.status < 2 && !!order.separateChecksEnabled;
+  const labelTooLong = label.trim().length > checkLabelMaxLength;
   return <>
-    <PageHeader eyebrow="Dine-in service" title={`Order #${order.orderNumber}`} description={`Tables ${order.tables.map(t => t.tableNumber).join(' + ')} · ${order.guestCount} guests · ${order.waiterName ?? 'Unassigned waiter'}`}
+    <PageHeader eyebrow="Dine-in service" title={order.checkLabel ? `${order.checkLabel} · Order #${order.orderNumber}` : `Order #${order.orderNumber}`} description={`Tables ${order.tables.map(t => t.tableNumber).join(' + ')} · ${order.guestCount} guests · ${order.waiterName ?? 'Unassigned waiter'}`}
       action={<Button component={Link} to="/orders/active" disabled={mutation.blocked}>Active orders</Button>} />
     <Stack direction="row" spacing={1} sx={{ mb: 2 }}><Chip label={orderStatusLabels[order.status]} /><Typography role="status">{mutation.saving ? 'Saving…' : mutation.error ? 'Action needs attention' : 'All confirmed changes saved'}</Typography></Stack>
+    {order.status < 2 && !endsVisit && <Alert severity="info" sx={{ mb: 2 }}>
+      This visit has {order.otherActiveCheckCount} other open {order.otherActiveCheckCount === 1 ? 'check' : 'checks'}. Ending this check leaves the tables occupied.
+    </Alert>}
     {order.status === 1 && <Alert severity={order.billingStatus === 2 ? 'success' : 'info'} sx={{ mb: 2 }}>
-      {order.billingStatus === 2 ? 'Bill paid. Close the visit after guests leave; the table stays occupied until then.' : order.billingStatus === 1 ? 'Bill partially paid. The cashier must record the remaining payment before closure.' : 'Bill requested. Pending cashier billing and payment.'}
+      {order.billingStatus === 2 ? (endsVisit ? 'Bill paid. Close the visit after guests leave; the table stays occupied until then.' : 'Bill paid. Close this check once the guest is done.') : order.billingStatus === 1 ? 'Bill partially paid. The cashier must record the remaining payment before closure.' : 'Bill requested. Pending cashier billing and payment.'}
       {order.billRequestedAtUtc && ` Requested ${new Date(order.billRequestedAtUtc).toLocaleString()}.`}
     </Alert>}
     {mutation.error && <Alert severity="error" sx={{ mb: 2 }}>{mutation.error}</Alert>}
@@ -148,6 +160,13 @@ export function OrderPage() {
         </Stack>
       </Box>}
       <Stack component="section" aria-label="Order details" spacing={2}>
+        {canRelabel ? <Stack direction="row" spacing={1} alignItems="flex-start">
+          <TextField size="small" label="Check label" placeholder="e.g. Seat 2" value={label} disabled={mutation.blocked}
+            error={labelTooLong} helperText={labelTooLong ? `Up to ${checkLabelMaxLength} characters` : undefined}
+            onChange={e => { setLabel(e.target.value); setLabelDirty(true); }} />
+          <Button disabled={mutation.blocked || !labelDirty || labelTooLong}
+            onClick={() => run(op => orderApi.setCheckLabel(order.id, label.trim() || null, order.rowVersion, op), () => setLabelDirty(false))}>Save label</Button>
+        </Stack> : order.checkLabel && <Typography>Check: {order.checkLabel}</Typography>}
         {order.items.length === 0 && <Typography>No items yet. Add items from the menu.</Typography>}
         {order.items.map(item => <OrderLineEditor key={item.id} item={item} editable={editable} disabled={mutation.blocked} onDirty={lineDirty}
           ticketLabel={ticketLabel(item.kitchenTicketId)} onVoid={canVoid ? () => { setReason(''); setVoidItemId(item.id); setAction('void'); } : undefined}
@@ -173,8 +192,8 @@ export function OrderPage() {
           {order.status === 0 && hasPermission(Permissions.ordersSubmit) && <Button variant="contained" disabled={mutation.blocked || !liveItems.length || serviceIncomplete || notesDirty || dirtyLines.size > 0} onClick={() => setAction('ready')}>Request bill</Button>}
           {order.status === 1 && hasPermission(Permissions.ordersSubmit) && <Button disabled={mutation.blocked || order.hasActivePayments} onClick={() => run(op => orderApi.reopen(order.id, order.rowVersion, op))}>Reopen to add items</Button>}
           {order.status === 1 && hasPermission(Permissions.billingManage) && <Button component={Link} to={`/billing/orders/${order.id}`} disabled={mutation.blocked}>Open billing</Button>}
-          {order.status === 1 && (hasPermission(Permissions.billingManage) || hasPermission(Permissions.ordersSubmit)) && <Button variant="contained" disabled={mutation.blocked || serviceIncomplete || order.billingStatus !== 2} onClick={() => setAction('close')}>Close visit</Button>}
-          {hasPermission(Permissions.ordersVoid) && (order.status === 0 || hasPermission(Permissions.ordersVoidAfterKitchen)) && <Button color="error" disabled={mutation.blocked} onClick={() => { setReason(''); setAction('cancel'); }}>Cancel order and visit</Button>}
+          {order.status === 1 && (hasPermission(Permissions.billingManage) || hasPermission(Permissions.ordersSubmit)) && <Button variant="contained" disabled={mutation.blocked || serviceIncomplete || order.billingStatus !== 2} onClick={() => setAction('close')}>{endsVisit ? 'Close visit' : 'Close check'}</Button>}
+          {hasPermission(Permissions.ordersVoid) && (order.status === 0 || hasPermission(Permissions.ordersVoidAfterKitchen)) && <Button color="error" disabled={mutation.blocked} onClick={() => { setReason(''); setAction('cancel'); }}>{endsVisit ? 'Cancel order and visit' : 'Cancel check'}</Button>}
         </Stack>}
         {(notesDirty || dirtyLines.size > 0) && <Typography role="status">Save your item and order notes before sending or marking ready to bill.</Typography>}
         {order.status === 0 && unsent > 0 && <Typography role="status">Send new items to the kitchen before requesting the bill.</Typography>}
@@ -183,12 +202,13 @@ export function OrderPage() {
         {order.closedAtUtc && <Typography>Closed {new Date(order.closedAtUtc).toLocaleString()}. {order.billingStatus === 2 ? 'Bill paid.' : 'Historical closure: no billing record is available.'}</Typography>}
         {order.cancellationReason && <Typography>Cancelled: {order.cancellationReason}</Typography>}
         {order.status >= 2 && <Button component={Link} to="/restaurant/table-dashboard">Return to table dashboard</Button>}
+        {order.status < 2 && !endsVisit && <Button component={Link} to="/restaurant/table-dashboard" disabled={mutation.blocked}>Other checks on the table dashboard</Button>}
       </Stack>
     </Box>
     <Dialog open={action !== null} onClose={() => { if (!mutation.saving) setAction(null); }} fullWidth maxWidth="sm">
-      <DialogTitle>{action === 'ready' ? 'Customer requested the bill?' : action === 'close' ? 'Guests have left — close visit?' : action === 'void' ? 'Void item?' : 'Cancel order and dining session?'}</DialogTitle>
+      <DialogTitle>{action === 'ready' ? 'Customer requested the bill?' : action === 'close' ? (endsVisit ? 'Guests have left — close visit?' : 'Close this check?') : action === 'void' ? 'Void item?' : endsVisit ? 'Cancel order and dining session?' : 'Cancel this check?'}</DialogTitle>
       <DialogContent><Stack spacing={2}>
-        <Typography>{action === 'ready' ? 'The order will appear in Pending billing for the cashier. Item and note editing will be locked.' : action === 'void' ? 'The kitchen will see the item struck out and it leaves the bill.' : action === 'close' ? 'Payment is complete. Confirm the guests have left. Tables will be marked Cleaning.' : 'The visit will end and its tables will be marked Cleaning. Orders with active payments cannot be cancelled.'}</Typography>
+        <Typography>{action === 'ready' ? 'The order will appear in Pending billing for the cashier. Item and note editing will be locked.' : action === 'void' ? 'The kitchen will see the item struck out and it leaves the bill.' : action === 'close' ? (endsVisit ? 'Payment is complete. This is the last open check: confirm the guests have left. Tables will be marked Cleaning.' : 'Payment is complete. Only this check ends; the other checks stay open and the tables stay occupied.') : endsVisit ? 'This is the last open check: the visit will end and its tables will be marked Cleaning. Orders with active payments cannot be cancelled.' : 'Only this check is cancelled; the other checks stay open. Orders with active payments cannot be cancelled.'}</Typography>
         {(action === 'cancel' || action === 'void') && <TextField label={action === 'void' ? 'Void reason' : 'Cancellation reason'} value={reason} onChange={e => setReason(e.target.value)} multiline disabled={mutation.saving} slotProps={{ htmlInput: { maxLength: 500 } }} />}
       </Stack></DialogContent>
       <DialogActions><Button disabled={mutation.saving} onClick={() => setAction(null)}>Back</Button>

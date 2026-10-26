@@ -97,7 +97,7 @@ export function KitchenDisplayPage() {
                 sx={{ borderLeft: 6, borderColor: late ? 'error.main' : ticket.status === KitchenTicketStatus.Prepared ? 'success.main' : 'divider' }}>
                 <CardContent><Stack spacing={1}>
                   <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Typography variant="h6">Order #{ticket.orderNumber}</Typography>
+                    <Typography variant="h6">Order #{ticket.orderNumber}{ticket.checkLabel ? ` · ${ticket.checkLabel}` : ''}</Typography>
                     <Chip label={kitchenTicketStatusLabels[ticket.status] ?? 'Unknown'} color={ticket.status === KitchenTicketStatus.Prepared ? 'success' : 'default'} />
                   </Stack>
                   <Typography color="text.secondary">Tables {ticket.tables.map(t => t.tableNumber).join(' + ') || '—'} · Ticket {ticket.ticketNumber}</Typography>

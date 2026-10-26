@@ -8,7 +8,7 @@ export function BillReceipt({ bill }: { bill: Bill }) {
   return <Box className="billing-receipt" sx={{ bgcolor: 'background.paper', p: { xs: 2, md: 3 }, borderRadius: 3 }}>
     <Typography variant="h5">{bill.restaurantName}</Typography>
     <Typography variant="h6">{bill.status === 2 ? 'Paid receipt' : bill.status === 3 ? 'Voided bill' : 'Bill'} #{bill.billNumber}</Typography>
-    <Typography>Order #{bill.orderNumber} · Tables {bill.tables.map(table => table.tableNumber).join(' + ')}</Typography>
+    <Typography>Order #{bill.orderNumber}{bill.checkLabel ? ` · ${bill.checkLabel}` : ''} · Tables {bill.tables.map(table => table.tableNumber).join(' + ')}</Typography>
     <Typography variant="body2">Generated {new Date(bill.generatedAtUtc).toLocaleString()} · Cashier: {bill.cashierName}</Typography>
     <Typography fontWeight={700}>{billStatusLabels[bill.status]}</Typography>
     <Box sx={{ overflowX: 'auto', '@media print': { overflow: 'visible' } }}><Table size="small" aria-label="Bill items">

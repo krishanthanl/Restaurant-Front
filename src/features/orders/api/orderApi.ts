@@ -1,12 +1,15 @@
 import { apiClient } from '../../../services/apiClient';
-import type { ActiveOrderQuery, Order, OrderPage } from '../types/orderTypes';
+import type { ActiveOrderQuery, Order, OrderPage, SessionCheck } from '../types/orderTypes';
 
 export const orderApi = {
   async get(id: string, signal?: AbortSignal) { return (await apiClient.get<Order>(`/orders/${id}`, { signal })).data; },
-  async forSession(id: string, signal?: AbortSignal) { return (await apiClient.get<Order>(`/dining-sessions/${id}/order`, { signal })).data; },
+  async listForSession(id: string, signal?: AbortSignal) { return (await apiClient.get<SessionCheck[]>(`/dining-sessions/${id}/orders`, { signal })).data; },
   async active(query: ActiveOrderQuery, signal?: AbortSignal) { return (await apiClient.get<OrderPage>('/orders/active', { params: query, signal })).data; },
-  async create(diningSessionId: string, sessionRowVersion: string, operationId: string) {
-    return (await apiClient.post<Order>('/orders', { diningSessionId, sessionRowVersion, operationId })).data;
+  async create(diningSessionId: string, sessionRowVersion: string, operationId: string, checkLabel?: string | null) {
+    return (await apiClient.post<Order>('/orders', { diningSessionId, sessionRowVersion, operationId, checkLabel: checkLabel || null })).data;
+  },
+  async setCheckLabel(id: string, checkLabel: string | null, rowVersion: string, operationId: string) {
+    return (await apiClient.put<Order>(`/orders/${id}/check-label`, { checkLabel, rowVersion, operationId })).data;
   },
   async add(id: string, menuItemId: string, quantity: number, notes: string | null, rowVersion: string, operationId: string) {
     return (await apiClient.post<Order>(`/orders/${id}/items`, { menuItemId, quantity, notes, rowVersion, operationId })).data;

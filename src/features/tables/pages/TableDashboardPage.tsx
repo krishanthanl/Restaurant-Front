@@ -17,7 +17,7 @@ import { DiningSessionActionDialog } from '../../dining-sessions/components/Dini
 import type { SessionInput } from '../../dining-sessions/types/diningSessionTypes';
 import { tableApi } from '../api/tableApi';
 import { TableStatus, tableStatuses, tableTypes, type RestaurantTable } from '../types/tableTypes';
-import { SessionOrderButton } from '../../orders/components/SessionOrderButton';
+import { SessionChecksPanel } from '../../orders/components/SessionChecksPanel';
 
 // Other devices change the floor too; refresh it in the background while no dialog is open.
 const FloorRefreshMs = 20_000;
@@ -39,7 +39,7 @@ export function TableDashboardPage() {
   const [waiterId, setWaiterId] = useState('');
   const [waiters, setWaiters] = useState<Waiter[]>([]);
   const [session, setSession] = useState<DiningSession | null>(null);
-  const [sessionHasOrder, setSessionHasOrder] = useState<boolean | null>(null);
+  const [sessionHasActiveChecks, setSessionHasActiveChecks] = useState<boolean | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   // Failure of an open/close/cancel on the selected table; kept across the reload that follows it.
@@ -110,7 +110,7 @@ export function TableDashboardPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setSession(null); setSessionHasOrder(null); setSessionError(null);
+    setSession(null); setSessionHasActiveChecks(null); setSessionError(null);
     if (!selectedId || !canOpen) return () => controller.abort();
     const table = tables.find(item => item.id === selectedId);
     setSessionLoading(true);
@@ -254,9 +254,9 @@ export function TableDashboardPage() {
         {canOpen && !loading && selected.currentStatus === TableStatus.Available && areas.find(a => a.id === selected.areaId)?.isActive &&
           <OpenDiningSessionDialog guests={guests} waiterId={waiterId} notes={notes} capacity={selected.capacity} waiters={waiters}
             disabled={saving || sessionLoading || Boolean(sessionError)} onGuests={setGuests} onWaiter={setWaiterId} onNotes={setNotes} onOpen={openSession} />}
-        {session && canOpen && <SessionOrderButton session={session} disabled={saving} onHasOrder={setSessionHasOrder} />}
+        {session && canOpen && <SessionChecksPanel session={session} disabled={saving} onHasActiveChecks={setSessionHasActiveChecks} />}
         {session && <DiningSessionDetailsDialog key={session.rowVersion} session={session} capacity={session.combinedCapacity ?? selected.capacity} waiters={waiters}
-          saving={saving} canCancel={canManage} hasOrder={sessionHasOrder} onSave={saveSession} onAction={value => { setReason(''); setAction(value); }} />}
+          saving={saving} canCancel={canManage} hasActiveChecks={sessionHasActiveChecks} onSave={saveSession} onAction={value => { setReason(''); setAction(value); }} />}
         {sessionError && <Button disabled={saving} onClick={reload}>Refresh session and tables</Button>}
       </Stack>}</DialogContent>
       <DialogActions>

@@ -11,4 +11,6 @@ export interface KitchenTicket {
   kitchenId: string; kitchenCode: string; kitchenName: string; status: number;
   sentAtUtc: string; acknowledgedAtUtc: string | null; preparingAtUtc: string | null; preparedAtUtc: string | null; servedAtUtc: string | null;
   tables: NonNullable<DiningSession['tables']>; orderNotes: string | null; lines: KitchenTicketLine[]; rowVersion: string;
+  // Separate checks on one table look alike without it.
+  checkLabel?: string | null;
 }
